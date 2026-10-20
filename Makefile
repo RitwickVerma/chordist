@@ -24,7 +24,7 @@ JS_FILES   := $(wildcard applet/contents/js/*.js)
 .NOTPARALLEL:
 .PHONY: help deps install install-service install-applet migrate migrate-panel uninstall doctor status \
         lint lint-reuse lint-python lint-qml lint-shell lint-deadcode \
-        test test-python test-js test-qml shots chords-db clean
+        test test-python test-js test-qml coverage shots chords-db clean
 
 help: ## Show this help
 	@echo "Chordist"
@@ -105,6 +105,9 @@ test: test-python test-js test-qml ## All tests
 
 test-python: ## pytest: parsing, providers, server and its guards
 	$(UV) run pytest
+
+coverage: ## Python test coverage, with the lines no test reaches
+	$(UV) run pytest --cov=chordist --cov-report=term-missing:skip-covered
 
 test-js: ## node: the widget's pure JS (theory, schedule, tab layout)
 	node --test tests/js

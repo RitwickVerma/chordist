@@ -1,5 +1,7 @@
 # Build output, test renders, caches, local environments.
 build/
+.coverage
+htmlcov/
 dist/
 .venv/
 .pytest_cache/

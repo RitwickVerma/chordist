@@ -132,8 +132,8 @@ def romanise_lyrics(lyrics: dict[str, Any]) -> dict[str, Any]:
 class KeyedLocks:
     """One lock per key, forgotten as soon as nobody holds or awaits it.
 
-    The service used to keep a lock for every song ever played; this keeps only
-    the ones in use.
+    Memory does not grow with every song played: a lock exists only while some
+    request holds or awaits it.
     """
 
     def __init__(self) -> None:
@@ -233,19 +233,17 @@ class Service:
             chart = self.chords.lookup(
                 l_artist, l_title, duration, chord_url=chord_url, album=hint_album, refresh=refresh
             )
-            # Align the chart rows to the lyric timings here, in the backend, so
-            # the widget follows one monotonic schedule instead of re-deriving it
-            # from a greedy scan (which a stray row like "haan" could hijack).
-            # The ORIGINAL lyrics are used: once romanised they no longer look
-            # like a Devanagari chart.  row_times is added to a copy so the
+            # Align the chart rows to the lyric timings here, so the widget follows
+            # one monotonic schedule that a stray row like "haan" cannot hijack.
+            # The original lyrics go first: once romanised they no longer look
+            # like a Devanagari chart. row_times is added to a copy, so the
             # cached chart is not mutated.
             timing = align.row_times(chart, lyrics, duration)
             if not timing:
-                # The chart is usually romanised while the lyrics may still be
-                # in Devanagari (or the other way round).  The alignment is
-                # text-only, so when the first pass finds nothing at all, retry
-                # in Latin -- the same thing the widget used to do by matching
-                # the on-screen romanised lines.
+                # The chart is usually romanised while the lyrics may still be in
+                # Devanagari (or the other way round). The alignment is text-only,
+                # so when the first pass finds nothing at all, try again with the
+                # lyrics romanised.
                 timing = align.row_times(chart, romanise_lyrics(lyrics), duration)
             if timing:
                 chart = dict(chart)
