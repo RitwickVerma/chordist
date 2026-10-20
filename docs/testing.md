@@ -9,6 +9,10 @@ Four layers, from cheapest to most real. `make test` runs the first three; the f
 | QML model | `make test-qml` | `SongModel.qml`: active row and lag, now/next chord, capo and key advice, voicing choice, loop, position extrapolation across a pause, pinning, clamping. Qt 6's `qmltestrunner`, offscreen, a plain object standing in for the MPRIS player. |
 | Real shell | below | `main.qml`, `Compact.qml`, the config page, Mpris wiring |
 
+CI lints the QML in an image that has Qt but not Plasma, so qmllint cannot resolve KDE types there: the pipeline sets
+`QMLLINT_FLAGS` to switch off exactly those categories (`import`, `unresolved-type`, `missing-property`, ...) and keeps
+everything else. `make lint-qml` on a machine with Plasma is the strict version.
+
 ## Screenshots
 
 `make shots` (or `tests/qml/run.sh OUT [scenario…]`) starts `tests/qml/fixture_service.py`, a real service with

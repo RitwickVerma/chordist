@@ -15,6 +15,9 @@ SYSTEMCTL  ?= systemctl --user
 QT_BIN     := /usr/lib/qt6/bin
 VERSION    := $(shell cat VERSION)
 QMLLINT    := $(QT_BIN)/qmllint
+# Extra qmllint switches. Empty locally, where Plasma's QML modules are installed and every type resolves;
+# the CI image has only Qt, and sets this to stop *unresolvable KDE types* from counting as warnings.
+QMLLINT_FLAGS ?=
 QMLTEST    := $(QT_BIN)/qmltestrunner
 UV         := uv
 QML_FILES  := $(wildcard applet/contents/ui/*.qml applet/contents/ui/config/*.qml applet/contents/config/*.qml)
@@ -96,7 +99,7 @@ lint-python: ## ruff over the service, tests and tools
 	$(UV) run ruff check .
 
 lint-qml: ## qmllint over the widget's QML and JS (warnings are errors)
-	$(QMLLINT) -I /usr/lib/qt6/qml --unqualified disable --compiler disable --block-scope-var-declaration disable --max-warnings 0 $(QML_FILES) $(JS_FILES)
+	$(QMLLINT) -I /usr/lib/qt6/qml --unqualified disable --compiler disable --block-scope-var-declaration disable $(QMLLINT_FLAGS) --max-warnings 0 $(QML_FILES) $(JS_FILES)
 
 lint-shell: ## shellcheck over the launcher and scripts
 	shellcheck bin/chordistd tests/qml/run.sh tests/qml/demo.sh tools/migrate-from-lyricist.sh
