@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+    <kcfgfile name=""/>
+
+    <group name="General">
+        <entry name="serviceUrl" type="String">
+            <default>http://127.0.0.1:8788</default>
+        </entry>
+        <entry name="defaultTab" type="String">
+            <default>chords</default>
+        </entry>
+        <entry name="autoScroll" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="lyricSync" type="Bool">
+            <label>Highlight and follow the line being sung</label>
+            <default>true</default>
+        </entry>
+        <entry name="showChordDiagrams" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="simplifyChords" type="Bool">
+            <label>Simplify every chord to an easy shape</label>
+            <default>false</default>
+        </entry>
+        <entry name="scrollSpeed" type="Int">
+            <label>Auto-scroll speed</label>
+            <default>5</default>
+            <min>1</min>
+            <max>10</max>
+        </entry>
+        <entry name="compactScroll" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="compactMode" type="String">
+            <label>Panel widget style</label>
+            <default>icon</default>
+        </entry>
+        <entry name="middleClickAction" type="String">
+            <default>playpause</default>
+        </entry>
+        <entry name="fontSizeOffset" type="Int">
+            <default>0</default>
+        </entry>
+        <entry name="backgroundOpacity" type="Int">
+            <label>Background opacity (per cent)</label>
+            <default>96</default>
+        </entry>
+        <entry name="openAsWindow" type="Bool">
+            <label>Open as a floating always-on-top window</label>
+            <default>false</default>
+        </entry>
+        <entry name="animateIcon" type="Bool">
+            <label>Rock the panel icon while a song with lyrics or chords is playing</label>
+            <default>true</default>
+        </entry>
+    </group>
+</kcfg>

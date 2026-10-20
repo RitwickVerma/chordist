@@ -1,0 +1,14 @@
+[Unit]
+Description=Lyricist service (lyrics and guitar chords for the song you are playing)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/lyricistd serve
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

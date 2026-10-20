@@ -1,0 +1,18 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "ritwick"
+            }
+        ],
+        "Category": "Multimedia",
+        "Description": "Lyrics and guitar chords for whatever you are playing",
+        "Icon": "view-media-lyrics",
+        "Id": "com.ritwick.lyricist",
+        "License": "MIT",
+        "Name": "Chordist",
+        "Version": "1.0.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
