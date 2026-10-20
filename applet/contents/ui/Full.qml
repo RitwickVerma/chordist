@@ -51,7 +51,10 @@ Item {
     readonly property string message: {
         var value = applet ? applet.statusMessage : ""
         if (value === "offline") return i18n("The Chordist service is not running.")
-        return value === "nothing" ? "" : value
+        if (value === "badaddress") return i18n("Only Ultimate Guitar tab addresses can be used.")
+        if (value === "nothing") return ""
+        if (value.length > 0) return value
+        return applet && applet.pinFailed ? i18n("The version you picked could not be loaded; showing the automatic pick.") : ""
     }
 
     implicitWidth: Kirigami.Units.gridUnit * 32
@@ -82,7 +85,8 @@ Item {
             Layout.fillHeight: false
             Layout.leftMargin: Kirigami.Units.largeSpacing
             Layout.rightMargin: Kirigami.Units.largeSpacing
-            Layout.bottomMargin: Kirigami.Units.smallSpacing
+            // No chips, no gap.
+            Layout.bottomMargin: implicitHeight > 0 ? Kirigami.Units.smallSpacing : 0
         }
 
         // Two tabs: Lyrics (when there are some) and the chart.

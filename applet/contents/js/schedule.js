@@ -118,7 +118,8 @@ function chordEvents(rows, times, end) {
             events.push({ t: start + span * fraction, row: index, chord: c, name: chords[c].name });
         }
     }
-    events.sort(function (a, b) { return a.t - b.t; });
+    // Ties (a zero-length row) keep their written order: no reliance on sort stability.
+    events.sort(function (a, b) { return (a.t - b.t) || (a.row - b.row) || (a.chord - b.chord); });
     return events;
 }
 
@@ -139,7 +140,9 @@ function chordAt(events, position, lag) {
         index: index,
         current: current,
         next: upcoming,
-        nextIn: upcoming ? Math.max(0, upcoming.t - position) : null
+        // Counted to when the highlight will switch (the lag again), so it reads
+        // zero exactly as the chord changes.
+        nextIn: upcoming ? Math.max(0, upcoming.t + (lag || 0) - position) : null
     };
 }
 

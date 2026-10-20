@@ -31,25 +31,30 @@ function reflowStaff(staff, columns) {
     var fit = Math.max(8, Math.floor(columns));
     if (width <= fit) return [staff];
 
-    var cuts = barColumns(rows);
+    // Where a piece may end: each bar line every string shares, and the end of
+    // the staff itself (a tab need not close with a bar). The first piece always
+    // begins at column 0, so nothing before the first bar line is lost.
+    var bars = barColumns(rows).filter(function (col) { return col > 0; });
+    var bounds = [0].concat(bars);
+    if (bounds[bounds.length - 1] < width - 1) bounds.push(width - 1);
     var spans = [];
-    if (cuts.length >= 2) {
+    if (bars.length > 0) {
         // Greedy: take bars until the next one would overflow.
-        var start = cuts[0];
-        var last = start;
-        for (var c = 1; c < cuts.length; c++) {
-            if (cuts[c] - start + 1 > fit && last > start) {
+        var start = 0;
+        var last = 0;
+        for (var c = 1; c < bounds.length; c++) {
+            if (bounds[c] - start + 1 > fit && last > start) {
                 spans.push([start, last]);
                 start = last;
             }
-            last = cuts[c];
+            last = bounds[c];
         }
         spans.push([start, last]);
-        // Music after the final bar line (a tab with no closing bar).
-        if (last < width - 1) spans[spans.length - 1][1] = width - 1;
     } else {
-        // No bar lines to respect: cut at the width, leaving a one-column overlap.
-        for (var from = 0; from < width; from += fit) spans.push([from, Math.min(width - 1, from + fit - 1)]);
+        // No bar lines to respect: cut by width. Each piece gets a bar line at
+        // both ends below, so it carries two characters fewer.
+        var step = fit - 2;
+        for (var from = 0; from < width; from += step) spans.push([from, Math.min(width - 1, from + step - 1)]);
     }
 
     return spans.map(function (span) {
@@ -63,12 +68,4 @@ function reflowStaff(staff, columns) {
             })
         };
     });
-}
-
-// The widest a staff gets once reflowed: used to size the view and to tell a
-// reader how much of a long staff there is.
-function staffWidth(staff) {
-    var width = 0;
-    for (var i = 0; i < staff.rows.length; i++) width = Math.max(width, staff.rows[i].length);
-    return width;
 }

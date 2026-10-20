@@ -36,29 +36,36 @@ QtObject {
     property int openCount: 0
 
     // ------------------------------------------------------------- config
-    function cfg(key, fallback) {
+    // What each setting reads as when the configuration does not have it. One
+    // table, so a toggle and the property it flips can never disagree.
+    readonly property var _defaults: ({
+        serviceUrl: "http://127.0.0.1:8788", autoScroll: true, lyricSync: true, showChordDiagrams: true,
+        showStage: true, showFingerNumbers: true, leftHanded: false, simplifyChords: false, scrollSpeed: 5,
+        defaultTab: "chords", fontSizeOffset: 0, backgroundOpacity: 96
+    })
+    function cfg(key) {
         var value = config ? config[key] : undefined
-        return value === undefined || value === null ? fallback : value
+        return value === undefined || value === null ? _defaults[key] : value
     }
     function setCfg(key, value) { if (config) config[key] = value }
 
-    readonly property string serviceUrl: String(cfg("serviceUrl", "http://127.0.0.1:8788") || "http://127.0.0.1:8788").replace(/\/+$/, "")
-    readonly property bool autoScroll: cfg("autoScroll", true)
-    readonly property bool lyricSync: cfg("lyricSync", true)
-    readonly property bool showChordDiagrams: cfg("showChordDiagrams", true)
-    readonly property bool showStage: cfg("showStage", true)
-    readonly property bool leftHanded: cfg("leftHanded", false)
-    readonly property bool showFingers: cfg("showFingerNumbers", true)
-    readonly property bool simplifyChords: cfg("simplifyChords", false)
-    readonly property int scrollSpeed: cfg("scrollSpeed", 5)
+    readonly property string serviceUrl: String(cfg("serviceUrl") || _defaults.serviceUrl).replace(/\/+$/, "")
+    readonly property bool autoScroll: cfg("autoScroll")
+    readonly property bool lyricSync: cfg("lyricSync")
+    readonly property bool showChordDiagrams: cfg("showChordDiagrams")
+    readonly property bool showStage: cfg("showStage")
+    readonly property bool leftHanded: cfg("leftHanded")
+    readonly property bool showFingers: cfg("showFingerNumbers")
+    readonly property bool simplifyChords: cfg("simplifyChords")
+    readonly property int scrollSpeed: cfg("scrollSpeed")
     // Two tabs: 0 = Lyrics, 1 = Chords. Anything unrecognised opens on Chords.
-    readonly property int defaultTabIndex: cfg("defaultTab", "chords") === "lyrics" ? 0 : 1
-    readonly property int fontSizeOffset: cfg("fontSizeOffset", 0)
+    readonly property int defaultTabIndex: cfg("defaultTab") === "lyrics" ? 0 : 1
+    readonly property int fontSizeOffset: cfg("fontSizeOffset")
     // How opaque our own backdrop is, 0..1: the popup background is translucent
     // and glassy themes make the text unreadable without one of our own.
-    readonly property real backgroundOpacity: cfg("backgroundOpacity", 96) / 100
+    readonly property real backgroundOpacity: cfg("backgroundOpacity") / 100
 
-    function toggle(key) { setCfg(key, !cfg(key, false)) }
+    function toggle(key) { setCfg(key, !cfg(key)) }
     function adjustFontSize(delta) { setCfg("fontSizeOffset", Math.max(-4, Math.min(10, fontSizeOffset + delta))) }
     function setScrollSpeed(value) { setCfg("scrollSpeed", Math.max(1, Math.min(10, Math.round(value)))) }
 
@@ -143,7 +150,11 @@ QtObject {
         if (!loopSpan || !playing) return
         if (positionSec >= loopSpan.end - 0.05 && positionSec < loopSpan.end + 3) seekTo(loopSpan.start)
     }
-    function loopSection(span) { loopSpan = span ? { name: span.name, start: span.start, end: span.end } : null }
+    // A section only a moment long would be seeked back over and over: not looped.
+    function loopSection(span) {
+        if (span && span.end - span.start < 2) return
+        loopSpan = span ? { name: span.name, start: span.start, end: span.end } : null
+    }
     function toggleLoopHere() {
         if (loopSpan) { loopSpan = null; return }
         var here = activeSpan
@@ -179,6 +190,8 @@ QtObject {
     readonly property bool chordsAvailable: !!(chart && chart.sections && chart.sections.length > 0)
     // "chords", "tab" or "mixed": what the chart is made of.
     readonly property string chartKind: chart && chart.kind ? chart.kind : "chords"
+    // A tab or lyrics entry picked by hand would not load, and the automatic pick is shown instead.
+    readonly property bool pinFailed: !!((chart && chart.pin_failed) || (lyrics && lyrics.pin_failed))
     readonly property bool hasChordNames: chordsAvailable && chartKind !== "tab"
 
     // Tab sites write chord names as the SHAPES you fret above the capo they
@@ -213,16 +226,29 @@ QtObject {
     readonly property var chordCounts: Theory.chordWeights(chart ? chart.sections : null)
     readonly property var chartNames: Theory.orderedNames(chart ? chart.sections : null)
     // The chords as they sound, before any capo shift.
-    readonly property var soundingNames: chartNames.map(function (n) {
-        return Theory.transposeChord(n, transpose + chartCapo)
-    })
+    // Two spellings of one chord (C# and Db) collapse to one sounding name.
+    readonly property var soundingNames: {
+        var seen = {}, out = []
+        chartNames.forEach(function (n) {
+            var sounding = Theory.transposeChord(n, transpose + chartCapo)
+            if (!seen[sounding]) { seen[sounding] = true; out.push(sounding) }
+        })
+        return out
+    }
+    // How often each sounding chord occurs, counting every spelling that maps to it.
+    readonly property var soundingWeights: {
+        var weights = {}
+        chartNames.forEach(function (n) {
+            var sounding = Theory.transposeChord(n, transpose + chartCapo)
+            weights[sounding] = (weights[sounding] || 0) + chordCounts[n]
+        })
+        return weights
+    }
     // key: {name, tonic, mode, source}. The tab's own stated key wins when it
     // gives one; otherwise it is worked out from the chords.
     readonly property var keyInfo: {
         if (!hasChordNames) return null
-        var weights = {}
-        for (var i = 0; i < chartNames.length; i++) weights[soundingNames[i]] = chordCounts[chartNames[i]]
-        var detected = Theory.detectKey(soundingNames, weights)
+        var detected = Theory.detectKey(soundingNames, soundingWeights)
         var stated = chartMeta.tonality || chart.key || ""
         var parsed = stated ? /^\s*([A-Ga-g][#b]?)\s*(m|min|minor)?\b/.exec(stated) : null
         if (parsed) {
@@ -241,18 +267,13 @@ QtObject {
     function romanFor(name) {
         return keyInfo ? Theory.romanNumeral(name, keyInfo.tonic, keyInfo.mode) : null
     }
-    function chordWeightsAt(names) {
-        var weights = {}
-        for (var i = 0; i < chartNames.length; i++) weights[names[i]] = chordCounts[chartNames[i]]
-        return weights
-    }
     // The easiest capo for these chords, and what it would turn them into.
     // Null when a capo would not make the shapes any easier than they are now.
     readonly property var capoAdvice: {
         if (!hasChordNames || simplifyChords) return null
-        var best = Theory.suggestCapo(soundingNames, chordWeightsAt(soundingNames), 7)
+        var best = Theory.suggestCapo(soundingNames, soundingWeights, 7)
         if (!best || best.capo === capo) return null
-        var current = Theory.capoCost(soundingNames, chordWeightsAt(soundingNames), capo)
+        var current = Theory.capoCost(soundingNames, soundingWeights, capo)
         return best.cost < current - 0.75 ? best : null
     }
 
@@ -338,6 +359,10 @@ QtObject {
     // ------------------------------------------------------------ networking
     property var _songRequest: null
     property int _requestId: 0
+    property bool _shapeFetching: false
+    // The length the last song request was made with: 0 means the player had not
+    // told us yet, and a lookup by title alone is less certain than one by length.
+    property int _requestedLength: -1
 
     function apiGet(path, callback) {
         var xhr = new XMLHttpRequest()
@@ -367,12 +392,15 @@ QtObject {
         xhr.send(JSON.stringify(body))
     }
 
-    function fetchSong() {
+    // `refresh` ("Ask again") also bypasses the service's memory of a miss.
+    function fetchSong(refresh) {
         if (!ready) return
         // Only the newest request may land: a slow answer for the previous
         // track must not overwrite the one for this track.
         if (_songRequest) _songRequest.abort()
         var id = ++_requestId
+        var forArtist = artist, forTrack = track
+        _requestedLength = Math.round(lengthSec)
         loading = true
         statusMessage = ""
         var query = "/api/song?artist=" + encodeURIComponent(artist)
@@ -382,6 +410,7 @@ QtObject {
                   + (romaniseChoice >= 0 ? "&romanise=" + romaniseChoice : "")
                   + (pinnedLyricsId ? "&lyrics_id=" + encodeURIComponent(pinnedLyricsId) : "")
                   + (pinnedChordUrl ? "&chord_url=" + encodeURIComponent(pinnedChordUrl) : "")
+                  + (refresh === true ? "&refresh=1" : "")
         _songRequest = apiGet(query, function (data, error) {
             if (id !== _requestId) return
             loading = false
@@ -395,6 +424,7 @@ QtObject {
             shapes = data.shapes || ({})
             shapeVariants = data.variations || ({})
             voicingPick = ({})
+            _prefsFor = { artist: forArtist, title: forTrack }
             applyPrefs(data.prefs || ({}), data.chords ? data.chords.capo : 0)
             if (!data.lyrics && (!data.chords || !(data.chords.sections || []).length))
                 statusMessage = "nothing"
@@ -404,18 +434,25 @@ QtObject {
     // Put the song back the way it was left: nudge, key and any hand-picked
     // tab or lyrics entry.
     function applyPrefs(prefs, tabCapo) {
+        _applying = true
         lyricsOffset = prefs.offset !== undefined && prefs.offset !== null ? prefs.offset : 0
         transpose = prefs.transpose !== undefined && prefs.transpose !== null ? prefs.transpose : 0
         // With no capo saved, start from the tab's own so it reads as written.
         capo = prefs.capo !== undefined && prefs.capo !== null ? prefs.capo : (tabCapo || 0)
         pinnedLyricsId = prefs.lyrics_id || ""
         pinnedChordUrl = prefs.chord_url || ""
+        _applying = false
     }
 
     function refreshShapes(names) {
         if (!names || !names.length) { shapes = ({}); shapeVariants = ({}); return }
+        // The song's own answer already carried these (the common case: no
+        // transposition): nothing to ask for.
+        if (names.every(function (name) { return shapeVariants && shapeVariants[name] })) return
         var id = _requestId
+        _shapeFetching = true
         apiGet("/api/shapes?names=" + encodeURIComponent(names.join(",")), function (data, error) {
+            _shapeFetching = false
             if (error || !data || id !== _requestId) return
             if (data.shapes) shapes = data.shapes
             if (data.variations) shapeVariants = data.variations
@@ -427,8 +464,12 @@ QtObject {
     function submitPaste(text) {
         var value = (text || "").trim()
         if (!value) return
-        // A bare Ultimate Guitar address is a request to use that tab.
-        if (/^https?:\/\/\S+$/.test(value) && pinChartUrl(value)) return
+        // A bare address is a request to use that tab, and only Ultimate Guitar's
+        // can be used: anything else is not a chart, so it is not saved as one.
+        if (/^https?:\/\/\S+$/.test(value)) {
+            if (!pinChartUrl(value)) statusMessage = "badaddress"
+            return
+        }
         apiPost("/api/paste", { artist: artist, title: track, text: text }, function (ok) {
             if (ok) fetchSong()
             else statusMessage = "could not save"
@@ -450,6 +491,7 @@ QtObject {
     property Timer _refetch: Timer { interval: 350; onTriggered: model.fetchSong() }
     Component.onCompleted: if (ready) _refetch.restart()
     onTrackChanged: {
+        flushPrefs()
         syncPosition()
         // What is on screen belongs to the previous song until the answer lands.
         stale = true
@@ -462,7 +504,11 @@ QtObject {
         loopSpan = null
         if (ready) _refetch.restart()
     }
+    // Some players announce the track's length a moment after its name. A lookup
+    // made without it is redone once it arrives.
+    onLengthSecChanged: if (ready && _requestedLength === 0 && lengthSec > 0) _refetch.restart()
     onArtistChanged: {
+        flushPrefs()
         // A new artist identifies a new track even when the title repeats.
         stale = true
         retryCount = 0
@@ -507,17 +553,34 @@ QtObject {
     }
 
     // The service remembers all of this per song; we tell it what changed, a
-    // moment after the last click.
+    // moment after the last click. The save goes to the song the settings were
+    // loaded for, not whatever is playing when the timer fires, so skipping a
+    // track right after a tweak cannot write one song's settings onto the next.
+    property var _prefsFor: null
+    // True while a song's own saved settings are being put back: those changes
+    // are not the user's, and must not be saved as if they were.
+    property bool _applying: false
+    function prefsBody() {
+        if (!_prefsFor) return null
+        return {
+            artist: _prefsFor.artist, title: _prefsFor.title, offset: lyricsOffset, transpose: transpose,
+            capo: capo, lyrics_id: pinnedLyricsId, chord_url: pinnedChordUrl
+        }
+    }
     function savePrefs() {
-        if (!ready) return
-        apiPost("/api/prefs", {
-            artist: artist, title: track, offset: lyricsOffset, transpose: transpose, capo: capo,
-            lyrics_id: pinnedLyricsId, chord_url: pinnedChordUrl
-        })
+        var body = prefsBody()
+        if (body) apiPost("/api/prefs", body)
+    }
+    // Write out a pending change now, while the settings still describe the song
+    // they were made for.
+    function flushPrefs() {
+        if (!_prefsSave.running) return
+        _prefsSave.stop()
+        savePrefs()
     }
     property Timer _prefsSave: Timer { interval: 700; onTriggered: model.savePrefs() }
-    onTransposeChanged: _prefsSave.restart()
-    onCapoChanged: _prefsSave.restart()
+    onTransposeChanged: if (!_applying) _prefsSave.restart()
+    onCapoChanged: if (!_applying) _prefsSave.restart()
 
     // ------------------------------------------------------------- versions
     function openVersions() {

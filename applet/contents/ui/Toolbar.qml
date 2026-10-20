@@ -185,7 +185,7 @@ ColumnLayout {
                 text: i18n("Ask again")
                 icon.name: "view-refresh"
                 displayHint: Kirigami.DisplayHint.AlwaysHide
-                onTriggered: bar.applet.fetchSong()
+                onTriggered: bar.applet.fetchSong(true)
             },
             Kirigami.Action {
                 text: i18n("Romanise the lyrics")

@@ -80,6 +80,7 @@ values.
 | `romanise` | `"auto"` | `"always"`, `"never"` |
 | `fingerprint_enabled` | `true` | identify a track from its audio when its metadata is junk, see [SECURITY.md](SECURITY.md) |
 | `min_request_interval` | `1.6` | seconds between requests to one host |
+| `negative_ttl_seconds` / `lyrics_negative_ttl_seconds` | 3 days / 6 hours | how long "nothing found" is remembered (the `⋮` menu's **Ask again** looks past it) |
 
 Your own charts live in `~/.local/share/lyricist/chords/` as ChordPro files; `lyricist local list|add|rm` manages them.
 

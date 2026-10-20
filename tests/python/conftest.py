@@ -23,13 +23,17 @@ def xdg(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def no_network(monkeypatch):
+def no_network(monkeypatch, request):
     """Anything that reaches urllib without a test's say-so is a bug in the test."""
 
     def refuse(*args: Any, **kwargs: Any):
         raise AssertionError(f"unexpected network access: {args[:1]}")
 
     monkeypatch.setattr("urllib.request.urlopen", refuse)
+    # fetch() goes through an opener, so guard that door as well; the tests that
+    # talk to their own loopback server say so with the ``loopback`` marker.
+    if not request.node.get_closest_marker("loopback"):
+        monkeypatch.setattr("urllib.request.OpenerDirector.open", refuse)
 
 
 def ug_page(tab_view: dict[str, Any], tab: dict[str, Any] | None = None) -> str:

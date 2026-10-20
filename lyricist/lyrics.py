@@ -21,7 +21,7 @@ from typing import Any
 from . import lrc
 from .cache import DiskCache, key_for
 from .config import Config, user_agent
-from .http import Throttle, fetch_json
+from .http import HttpError, Throttle, fetch_json
 
 log = logging.getLogger("lyricist.lyrics")
 
@@ -175,6 +175,7 @@ class LyricsProvider:
         self.throttle = throttle
         self.cache = DiskCache("lyrics", ttl=int(config.get("lyrics_ttl_seconds", 0)))
         self.contact = config.get("contact") or ""
+        self.negative_ttl = int(config.get("lyrics_negative_ttl_seconds", 6 * 3600))
 
     def lookup(
         self,
@@ -183,6 +184,7 @@ class LyricsProvider:
         album: str = "",
         duration: float = 0.0,
         lyrics_id: Any = None,
+        refresh: bool = False,
     ) -> dict[str, Any]:
         artist = clean(artist)
         title = clean(title)
@@ -190,6 +192,7 @@ class LyricsProvider:
             return {"source": "none", "error": "no track title"}
 
         # A hand-picked entry wins over the automatic match.
+        pin_failed = False
         if lyrics_id:
             pinned_key = key_for("pinned", str(lyrics_id))
             cached = self.cache.get(pinned_key)
@@ -203,21 +206,29 @@ class LyricsProvider:
                 pinned["pinned"] = True
                 self.cache.set(pinned_key, pinned)
                 return pinned
+            pin_failed = True    # fall back to the automatic match, and say so
 
         key = key_for(artist, title, album, int(duration or 0) // 5)
-        cached = self.cache.get(key)
+        cached = None if refresh else self.cache.get(key)
         if cached is not None:
-            cached = dict(cached)
-            cached["cached"] = True
-            return cached
-
-        result = self._lookup_remote(artist, title, album, duration)
-        if result and result.get("source") != "none":
-            self.cache.set(key, result)
-        return result
+            result = {**cached, "cached": True}
+        else:
+            result = self._lookup_remote(artist, title, album, duration)
+            if result.get("source") != "none":
+                self.cache.set(key, result)
+            elif result.get("error") == "no match":
+                # LRCLIB answered and does not have it: remember that for a while,
+                # so retries and the identity search do not ask all over again.
+                # (Not being able to reach LRCLIB is "offline", and never cached.)
+                self.cache.set(key, result, ttl=self.negative_ttl)
+        return {**result, "pin_failed": True} if pin_failed else result
 
     def _lookup_remote(self, artist: str, title: str, album: str, duration: float) -> dict[str, Any]:
         headers = self._headers()
+
+        # Did LRCLIB answer at all (a 404 is an answer: "not here")? Without that,
+        # an unreachable network would look the same as a song nobody has.
+        answered = False
 
         # 1. The exact-match endpoint. Cheap and precise when it hits.
         params = {"artist_name": artist, "track_name": title}
@@ -233,9 +244,11 @@ class LyricsProvider:
                 headers=headers,
                 retries=1,
             )
+            answered = True
             if isinstance(entry, dict) and entry.get("trackName"):
                 return _shape(entry)
         except Exception as exc:
+            answered = answered or (isinstance(exc, HttpError) and exc.status == 404)
             log.debug("lrclib exact match for %s - %s: %s", artist, title, exc)
 
         # 2. Search, then pick the best-scoring candidate ourselves. Streaming
@@ -278,8 +291,10 @@ class LyricsProvider:
                     headers=headers,
                     retries=1,
                 )
-            except Exception:
+            except Exception as exc:
+                answered = answered or (isinstance(exc, HttpError) and exc.status == 404)
                 continue
+            answered = True
             if not isinstance(rows, list):
                 continue
             for row in rows[:25]:
@@ -295,7 +310,7 @@ class LyricsProvider:
                 break
 
         if best is None:
-            return {"source": "none", "error": "no match"}
+            return {"source": "none", "error": "no match" if answered else "offline"}
         return _shape(best)
 
     # ------------------------------------------------------------- versions

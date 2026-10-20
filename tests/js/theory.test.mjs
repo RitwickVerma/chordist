@@ -133,3 +133,65 @@ test("detected keys are spelled like a guitarist writes them", () => {
     assert.equal(T.detectKey(["Gm", "Eb", "Bb", "F"]).name, "Gm");
     assert.equal(T.detectKey(["F#m", "D", "E", "F#m"]).name, "F#m");
 });
+
+// ---- review pass ----
+
+test("easy mode keeps capital-M major sevenths major", () => {
+    assert.equal(T.simplifyChord("CM7"), "C");
+    assert.equal(T.simplifyChord("CM9"), "C");
+    assert.equal(T.simplifyChord("CMaj7"), "C");
+    assert.equal(T.simplifyChord("Cm7"), "Cm");
+    assert.equal(T.simplifyChord("Cmmaj7"), "Cm");
+    assert.equal(T.simplifyChord("Cmin7"), "Cm");
+    assert.equal(T.simplifyChord("Bdim"), "Bm");
+});
+
+test("a chord row never glues two chord names together", () => {
+    assert.equal(T.chordLine([{ pos: 0, name: "Am" }, { pos: 2, name: "F" }], 0, false), "Am F");
+    assert.equal(T.chordLine([{ pos: 0, name: "Am" }, { pos: 3, name: "F" }], 0, false), "Am F");
+    const cols = T.chordColumns([{ pos: 0, name: "Am" }, { pos: 2, name: "F" }], 0, false);
+    assert.deepEqual(cols.map((c) => c.col), [0, 3]);
+});
+
+test("chord tones are spelled by letter, so the third of Gm is Bb", () => {
+    assert.deepEqual(T.chordTones("Gm"), ["G", "Bb", "D"]);
+    assert.deepEqual(T.chordTones("Cm"), ["C", "Eb", "G"]);
+    assert.deepEqual(T.chordTones("Fm7"), ["F", "Ab", "C", "Eb"]);
+    assert.deepEqual(T.chordTones("Am"), ["A", "C", "E"]);
+    assert.deepEqual(T.chordTones("F#m"), ["F#", "A", "C#"]);
+    assert.deepEqual(T.chordTones("Bb"), ["Bb", "D", "F"]);
+    assert.deepEqual(T.chordTones("A"), ["A", "C#", "E"]);
+    assert.deepEqual(T.chordTones("Ebm"), ["Eb", "Gb", "Bb"]);
+    assert.deepEqual(T.chordTones("Caug"), ["C", "E", "G#"]);
+    assert.deepEqual(T.chordTones("Cdim7"), ["C", "Eb", "Gb", "Bbb"]);
+    assert.deepEqual(T.chordTones("E7"), ["E", "G#", "B", "D"]);
+});
+
+test("altered extensions are the altered notes", () => {
+    assert.deepEqual(T.chordTones("G7b9"), ["G", "B", "D", "F", "Ab"]);
+    assert.deepEqual(T.chordTones("G7#9"), ["G", "B", "D", "F", "A#"]);
+    assert.deepEqual(T.chordTones("C7#11"), ["C", "E", "G", "Bb", "F#"]);
+    assert.deepEqual(T.chordTones("G9"), ["G", "B", "D", "F", "A"]);
+});
+
+test("transposed chords are spelled the way guitarists write them", () => {
+    assert.equal(T.transposeChord("G", 3), "Bb");
+    assert.equal(T.transposeChord("C", 3), "Eb");
+    assert.equal(T.transposeChord("Cm", 8), "G#m");
+    assert.equal(T.transposeChord("Am", 1), "Bbm");
+    assert.equal(T.transposeChord("D", 1), "Eb");
+    assert.equal(T.transposeChord("E", 6), "Bb");
+    assert.equal(T.transposeChord("F#m", 2), "G#m");
+    assert.equal(T.transposeChord("A", 2), "B");
+    assert.equal(T.transposeChord("A/C#", 2), "B/D#");
+    assert.equal(T.transposeChord("G/B", 3), "Bb/D");
+    assert.equal(T.transposeChord("G/F#", 1), "Ab/G");
+    assert.equal(T.transposeChord("C/Bb", 2), "D/C");
+});
+
+test("extended chords that are easy to play are not priced as barres", () => {
+    assert.ok(T.shapeCost("A7sus4") < 1.5);
+    assert.ok(T.shapeCost("Em9") < 1.5);
+    assert.ok(T.shapeCost("F#7sus4") >= 2);
+    assert.ok(T.shapeCost("Bm7") >= 2);
+});

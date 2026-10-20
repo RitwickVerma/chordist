@@ -95,8 +95,14 @@ def resolve(
     title: str,
     duration: float = 0.0,
     album: str = "",
+    allow_fingerprint: bool = True,
 ) -> dict[str, Any] | None:
-    """The canonical artist/title/album for what is playing, or ``None``."""
+    """The canonical artist/title/album for what is playing, or ``None``.
+
+    ``allow_fingerprint=False`` is for callers that only want to know what an
+    earlier lookup already worked out (saving a chart, listing versions): they
+    must not make the machine record audio, and a miss they see is not cached.
+    """
     if not title:
         return None
 
@@ -130,6 +136,9 @@ def resolve(
             "confidence": "duration",
         }
         break
+
+    if resolved is None and not allow_fingerprint:
+        return None
 
     from_fingerprint = False
     if resolved is None and config.get("fingerprint_enabled", True):

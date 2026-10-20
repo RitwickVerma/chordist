@@ -147,6 +147,7 @@ Item {
                 readonly property bool current: entry.kind === "lyrics"
                     ? String(entry.item.id) === String(panel.applet ? panel.applet.pinnedLyricsId : "")
                     : (entry.item.url || "") === (panel.applet ? panel.applet.pinnedChordUrl : "")
+                      && !(panel.applet && panel.applet.pinFailed)
 
                 Rectangle {
                     anchors.fill: parent

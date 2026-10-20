@@ -16,6 +16,7 @@ import contextlib
 import hashlib
 import json
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -57,7 +58,9 @@ class DiskCache:
             "value": value,
         }
         path = self._path(key)
-        tmp = path.with_suffix(".tmp")
+        # One temp name per writer, so two threads writing the same key cannot
+        # interleave in a shared file before the atomic rename.
+        tmp = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
         try:
             self.dir.mkdir(parents=True, exist_ok=True)
             with tmp.open("w", encoding="utf-8") as fh:

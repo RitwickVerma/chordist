@@ -55,6 +55,13 @@ make shots     # headless renders of the real QML against a fixture service -> b
   the keys in `MUTABLE_CONFIG`. Do not loosen any of these; add a test if you touch them.
 - **A cache or prefs failure must never fail a request.** Reads and writes under the XDG directories are
   best-effort.
+- **A song has one name.** Lookups, saving a chart, deleting one and the version chooser all use the identity the
+  song resolved to (`Service._known_identity`, which never starts an audio capture), and `clean()` on top. Anything
+  that keys data by artist/title must go through the same path, or it will be saved under one name and sought under
+  another.
+- **Not found is not offline.** Cache a miss only when the site answered. A network failure must stay uncached.
+- **Per-song settings follow the song they were loaded for** (`SongModel._prefsFor`), not whatever plays when a
+  timer fires, and putting a song's own settings back is not a user change (`_applying`).
 - **Timing is monotonic.** A chart row's time never goes backwards, and a line never lights before its time
   (`syncLag`).
 - Unit-file sandboxing is real: new files the service writes must be under `~/.config/lyricist`,

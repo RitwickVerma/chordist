@@ -37,7 +37,32 @@ A rebuild of the widget and a hardening of the service. Settings, saved charts a
 - An unwritable cache directory made requests fail instead of being ignored.
 - Per-song locks and the prefs file's eviction order leaked/misbehaved over a long session.
 
+- Chart and tab parsing, theory and timing, found in a review pass:
+  - `CM7`/`CM9` were simplified to a *minor* chord in easy mode.
+  - Adjacent chord names were glued together (`AmF`); chord tones were mis-spelled (the third of `Gm` was `A#`),
+    and altered extensions (`7b9`) gave the natural note. Transposed chords now use guitarists' spellings
+    (`Bb`, `Eb`, `G#m`), and an easy open chord with an extension (`A7sus4`) is no longer priced as a barre.
+  - A tab staff that began before its first bar line lost that music when re-flowed; barless pieces overflowed;
+    `999999` views read "1000k".
+  - The next-chord countdown reached zero before the chord actually switched; chords of a zero-length row
+    could reorder.
+  - Settings saved after a quick skip could be written onto the *next* song, a track change erased pending
+    pinned picks, and loading a song wrote its defaults back as if the user had chosen them.
+  - Pasting a chart for a song whose metadata is decorated ("... (Official Video)") saved it under a name lookups
+    never used, so it was never found; deleting and the version chooser had the same mismatch. A pinned tab
+    skipped identity resolution and so lost its lyrics.
+  - Ultimate Guitar searches were not URL-encoded (`&`, `#`, and every non-ASCII title failed outright).
+  - A chart file named after an artist was returned for every song by them.
+  - "No chords found" and "no lyrics" were never actually remembered, so every retry re-ran the whole search;
+    now remembered (and "Ask again" looks past it), without ever remembering "offline" as "not found".
+  - A pinned tab that failed to load made the whole song fail, lyrics included; it now falls back and says so.
+  - The server kept a connection alive after refusing a request without reading its body, so that body was parsed
+    as the next request. A glide animation fought the user's scrolling. `Config.save` wrote every default into
+    `config.json`. Concurrent cache writers shared a temp file.
+  - Aligning a long chart took about a second per lookup; it is 15x faster, with identical results.
+
 ### Security
+- `Origin: null` and cross-site fetch metadata are refused as well; redirects may not leave http(s).
 - A pinned tab could be any URL, including `file://` and LAN addresses; only `https://*.ultimate-guitar.com` is
   fetched now.
 - Any web page could read the local API (CORS `*`), change it with a text/plain POST, or set `songrec_path` to an

@@ -55,6 +55,18 @@ class Throttle:
             self._last[host] = time.monotonic()
 
 
+class _HttpOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only to http(s): urllib would also follow one to ftp://."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        if urllib.parse.urlsplit(newurl).scheme not in ("http", "https"):
+            raise urllib.error.HTTPError(req.full_url, code, f"redirect to {newurl!r} refused", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER = urllib.request.build_opener(_HttpOnlyRedirects)
+
+
 class HttpError(RuntimeError):
     def __init__(self, status: int, url: str) -> None:
         super().__init__(f"HTTP {status} for {url}")
@@ -92,7 +104,7 @@ def fetch(
             throttle.wait(url)
         request = urllib.request.Request(url, headers=request_headers)
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with _OPENER.open(request, timeout=timeout) as response:
                 charset = response.headers.get_content_charset() or "utf-8"
                 return response.read(MAX_BODY_BYTES).decode(charset, "replace")
         except urllib.error.HTTPError as exc:

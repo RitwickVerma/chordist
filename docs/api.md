@@ -1,7 +1,8 @@
 # Service HTTP API
 
 `lyricistd` on `http://127.0.0.1:8788` (see `host`/`port`). JSON in and out. `GET /api/health` is the quick check.
-Requests from a non-loopback `Host`, or with a cross-site `Origin`, get `403`. Writes must be
+Requests from a non-loopback `Host`, with any `Origin` that is not loopback (including `null`), or with
+`Sec-Fetch-Site` other than `none`/`same-origin`, get `403`. A refused request closes its connection. Writes must be
 `Content-Type: application/json` (`415` otherwise), bodies are capped at 1 MiB (`413`). There are no CORS headers.
 
 ## Read
@@ -9,7 +10,7 @@ Requests from a non-loopback `Host`, or with a cross-site `Origin`, get `403`. W
 | Request | Returns |
 | --- | --- |
 | `GET /api/health` | `{ok, version, port, sources, ug_enabled, contact_configured, local_charts, uptime_seconds}` |
-| `GET /api/song?artist=&title=&album=&duration=[&romanise=0\|1][&lyrics_id=][&chord_url=]` | everything for a song, below |
+| `GET /api/song?artist=&title=&album=&duration=[&romanise=0\|1][&lyrics_id=][&chord_url=][&refresh=1]` | everything for a song, below; `refresh=1` looks past remembered misses |
 | `GET /api/lyrics?…` | just the lyrics object |
 | `GET /api/chords?artist=&title=&duration=[&chord_url=]` | just the chart |
 | `GET /api/versions?artist=&title=&album=&duration=` | `{lyrics: [...], charts: [...]}` candidates for the "wrong version" chooser |
@@ -18,7 +19,9 @@ Requests from a non-loopback `Host`, or with a cross-site `Origin`, get `403`. W
 | `GET /api/local` | `{items: [{file, slug, size, modified}]}`: your own charts |
 | `GET /api/config` | the effective configuration |
 
-`chord_url` must be an `https://*.ultimate-guitar.com` address; anything else is ignored.
+`chord_url` must be an `https://*.ultimate-guitar.com` address; anything else is ignored. A pinned `lyrics_id` or
+`chord_url` that will not load falls back to the automatic pick and the answer carries `pin_failed: true`. Misses (no
+lyrics, no chart) are remembered for a while; being unable to reach a site is not a miss and is never remembered.
 
 ### `/api/song`
 

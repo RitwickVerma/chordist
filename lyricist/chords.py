@@ -19,12 +19,13 @@ import re
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote_plus, urlsplit
 
 from . import chart, shapes, titles
 from .cache import DiskCache, key_for
 from .config import Config, chords_dir
 from .http import HttpError, Throttle, fetch
+from .lyrics import clean
 
 log = logging.getLogger("lyricist.chords")
 
@@ -157,6 +158,12 @@ class ChordProvider:
     # ---------------------------------------------------------------- local
 
     def local_candidates(self, artist: str, title: str) -> list[Path]:
+        """Chart files that would be used for this song, most specific first.
+
+        Names are cleaned the way lookups clean them, so a chart saved under a
+        decorated video title is found again under the plain song name.
+        """
+        artist, title = clean(artist), clean(title)
         keys = []
         if artist and title:
             keys.append(f"{slug(artist)}-{slug(title)}")
@@ -164,8 +171,6 @@ class ChordProvider:
             keys.append(slug(title))
             if artist:
                 keys.append(f"{slug(title)}-{slug(artist)}")
-        if artist:
-            keys.append(slug(artist))
         found: list[Path] = []
         for key in keys:
             if not key:
@@ -193,6 +198,7 @@ class ChordProvider:
         return None
 
     def save_local(self, artist: str, title: str, text: str, fmt: str = "auto") -> dict[str, Any]:
+        artist, title = clean(artist), clean(title)
         parsed = chart.parse(text, fmt=fmt, title=title, artist=artist)
         stem = f"{slug(artist)}-{slug(title)}" if artist else slug(title)
         if not stem:
@@ -249,7 +255,9 @@ class ChordProvider:
         an empty page - prepending the artist to a title search does it often -
         so a 404 means "nothing here", not "ask again later".
         """
-        url = UG_SEARCH.format(query=re.sub(r"\s+", "+", query.strip()))
+        # Percent-encoded, spaces as '+': an '&' or '#' in a title must not cut the
+        # query short, and urllib cannot send a non-ASCII URL at all.
+        url = UG_SEARCH.format(query=quote_plus(query.strip()))
         try:
             page = fetch(
                 url,
@@ -444,15 +452,14 @@ class ChordProvider:
         deliberately includes every kind of tab, not just chord charts, so the
         chooser can offer a fingerstyle arrangement or a bass line too.
         """
-        from .lyrics import clean
-
         artist = clean(artist)
         title = clean(title)
         if not title or not self.config.get("ug_enabled", True):
             return []
         try:
             results = self._ug_results(artist, title, album)
-        except Exception:
+        except Exception as exc:
+            log.warning("listing tabs for %s - %s failed: %s", artist, title, exc)
             return []
         out: list[dict[str, Any]] = []
         # Guarded (matching) tabs sort first; the rest are kept so the chooser
@@ -482,9 +489,8 @@ class ChordProvider:
         duration: float = 0.0,
         chord_url: str | None = None,
         album: str = "",
+        refresh: bool = False,
     ) -> dict[str, Any]:
-        from .lyrics import clean
-
         artist = clean(artist)
         title = clean(title)
         if not title:
@@ -502,27 +508,44 @@ class ChordProvider:
             chord_url = None
 
         # A tab the user picked by hand beats anything we would choose ourselves.
+        pin_failed = False
         if chord_url:
-            pinned_key = _pinned_key(chord_url)
-            cached = self.cache.get(pinned_key)
-            if isinstance(cached, dict) and cached.get("sections"):
-                cached = dict(cached)
-                cached["cached"] = True
-                cached["pinned"] = True
-                return cached
-            pinned = self._ug_fetch({"tab_url": chord_url})
-            if pinned and pinned.get("sections"):
-                pinned["pinned"] = True
-                self.cache.set(pinned_key, pinned)
+            pinned = self._lookup_pinned(chord_url)
+            if pinned:
                 return pinned
+            # It would not load (gone, rate limited): fall back to the automatic
+            # pick, and say so, rather than failing the whole song.
+            pin_failed = True
 
+        found = self._lookup_automatic(artist, title, album, sources, refresh)
+        return {**found, "pin_failed": True} if pin_failed else found
+
+    def _lookup_pinned(self, url: str) -> dict[str, Any] | None:
+        key = _pinned_key(url)
+        cached = self.cache.get(key)
+        if isinstance(cached, dict) and cached.get("sections"):
+            return {**cached, "cached": True, "pinned": True}
+        try:
+            pinned = self._ug_fetch({"tab_url": url})
+        except Exception as exc:
+            log.warning("pinned tab %s would not load: %s", url, exc)
+            return None
+        if pinned and pinned.get("sections"):
+            pinned["pinned"] = True
+            self.cache.set(key, pinned)
+            return pinned
+        return None
+
+    def _lookup_automatic(
+        self, artist: str, title: str, album: str, sources: list[str], refresh: bool
+    ) -> dict[str, Any]:
         key = _cache_key(artist, title)
-        if "cache" in sources:
+        if "cache" in sources and not refresh:
             cached = self.cache.get(key)
-            if isinstance(cached, dict) and cached.get("sections"):
-                cached = dict(cached)
-                cached["cached"] = True
-                return cached
+            if isinstance(cached, dict) and (cached.get("sections") or cached.get("source") == "none"):
+                # A remembered miss is an answer too: without this a song with no
+                # chart would re-run the whole site search on every retry.
+                return {**cached, "cached": True}
 
         if "ultimate-guitar" in sources and self.config.get("ug_enabled", True):
             try:
@@ -535,11 +558,12 @@ class ChordProvider:
                         return result
             except HttpError as exc:
                 # Rate limited: remember the miss only briefly so we retry soon.
-                self.cache.set(key, {"source": "none", "sections": [], "error": str(exc)}, ttl=900)
-                return {"source": "none", "sections": [], "error": str(exc), "retry_in": 900}
+                miss = {"source": "none", "sections": [], "error": str(exc), "retry_in": 900}
+                self.cache.set(key, miss, ttl=900)
+                return miss
             except Exception as exc:  # never let a scrape break the popup
                 log.warning("chord lookup for %s - %s failed: %s", artist, title, exc)
                 return {"source": "none", "sections": [], "error": str(exc)}
 
-        self.cache.set(key, {"source": "none", "sections": []}, ttl=self.negative_ttl)
+        self.cache.set(key, {"source": "none", "sections": [], "error": "no chords found"}, ttl=self.negative_ttl)
         return {"source": "none", "sections": [], "error": "no chords found"}

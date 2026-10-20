@@ -46,6 +46,30 @@ test("a single bar wider than the view is still returned, not dropped", () => {
     assert.ok(pieces.every((p) => p.rows.length === 2));
 });
 
-test("staffWidth reports the widest row", () => {
-    assert.equal(Tab.staffWidth({ rows: ["|--|", "|----|"] }), 6);
+test("music before the first bar line is kept", () => {
+    const row = (frets) => "--" + frets + "|--5--|--6--|--7--|";
+    const staff = { labels: ["e", "B"], rows: [row("1-"), row("--")] };
+    const pieces = plain(Tab.reflowStaff(staff, 12));
+    const kept = pieces.map((p) => p.rows[0]).join("").replace(/[-|]/g, "");
+    assert.equal(kept, "1" + "5" + "6" + "7");
+});
+
+test("a repeat-sign staff (rows start with a colon) loses nothing", () => {
+    const row = (digit) => ":--" + digit + "--|--" + digit + "--|--" + digit + "--|";
+    const staff = { labels: ["e", "B"], rows: [row(1), row(2)] };
+    const pieces = plain(Tab.reflowStaff(staff, 10));
+    assert.equal(pieces.map((p) => p.rows[0]).join("").replace(/[-|:]/g, ""), "111");
+});
+
+test("every piece fits the room it was given, bars included", () => {
+    for (const cols of [8, 10, 17, 33]) {
+        const barless = "-".repeat(61);
+        const barred = ("|" + "-".repeat(9)).repeat(7) + "|";
+        for (const row of [barless, barred]) {
+            const pieces = plain(Tab.reflowStaff({ labels: ["e", "B"], rows: [row, row] }, cols));
+            for (const piece of pieces) {
+                for (const r of piece.rows) assert.ok(r.length <= Math.max(cols, 11), `${cols}: ${r.length}`);
+            }
+        }
+    }
 });

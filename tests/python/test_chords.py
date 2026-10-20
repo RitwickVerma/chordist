@@ -152,3 +152,89 @@ def test_unreadable_pages_do_not_raise(fake_ug):
     fake_ug.pages["search"] = "<html>no store here</html>"
     got = provider().lookup("X", "Y")
     assert got["source"] == "none" and got["sections"] == []
+
+
+# ---- review pass ----
+
+def test_search_queries_are_url_encoded(fake_ug, monkeypatch):
+    urls = []
+
+    def fetch(url, **kwargs):
+        urls.append(url)
+        return ug_search_page([])
+
+    monkeypatch.setattr(chords, "fetch", fetch)
+    provider()._ug_search("Rock & Roll #1 आसमान")
+    (url,) = urls
+    assert "%26" in url and "%23" in url          # & and # would cut the query short
+    assert "&Roll" not in url and "#1" not in url
+    assert "%E0%A4%86" in url                     # non-ASCII is UTF-8 percent-encoded
+    assert url.isascii()                          # urllib refuses a non-ASCII URL outright
+    assert "Rock+%26+Roll" in url                 # spaces stay '+', as the site writes them
+
+
+def test_a_file_named_after_the_artist_is_not_every_songs_chart():
+    p = provider()
+    p.directory.mkdir(parents=True, exist_ok=True)
+    (p.directory / "radiohead.chordpro").write_text("[Am]one chart")
+    assert p.local_candidates("Radiohead", "Creep") == []
+    (p.directory / "creep.chordpro").write_text("[Am]by title")
+    assert [f.name for f in p.local_candidates("Radiohead", "Creep")] == ["creep.chordpro"]
+
+
+def test_a_miss_is_remembered_so_the_site_is_not_searched_again(fake_ug):
+    fake_ug.pages["search"] = ug_search_page([])
+    p = provider()
+    first = p.lookup("X", "Nothing Here")
+    assert first["error"] == "no chords found"
+    searches = len(fake_ug.fetched)
+    assert searches > 0
+    again = p.lookup("X", "Nothing Here")
+    assert again["source"] == "none" and again["cached"] is True
+    assert len(fake_ug.fetched) == searches, "the second lookup went back to the network"
+
+
+def test_a_rate_limited_miss_is_also_not_hammered(fake_ug, monkeypatch):
+    calls = []
+
+    def fetch(url, **kwargs):
+        calls.append(url)
+        raise chords.HttpError(502, url)
+
+    monkeypatch.setattr(chords, "fetch", fetch)
+    p = provider()
+    p.lookup("X", "Y")
+    n = len(calls)
+    p.lookup("X", "Y")
+    assert len(calls) == n
+
+
+def test_a_pinned_tab_that_fails_to_load_falls_back_and_says_so(fake_ug, monkeypatch):
+    fake_ug.pages["search"] = ug_search_page([result(TAB_URL, "Chords")])
+    fake_ug.pages[TAB_URL] = ug_page(TAB_VIEW)
+
+    def fetch(url, **kwargs):
+        if url == TABS_URL:
+            raise chords.HttpError(404, url)
+        return fake_ug.pages["search"] if "search.php" in url else fake_ug.pages[url]
+
+    monkeypatch.setattr(chords, "fetch", fetch)
+    got = provider().lookup("X", "Y", chord_url=TABS_URL)
+    assert got["url"] == TAB_URL            # the automatic pick took over
+    assert got["pin_failed"] is True        # and the widget can tell the user
+    assert "pinned" not in got
+
+
+def test_a_pin_that_works_is_not_marked_failed(fake_ug):
+    fake_ug.pages[TABS_URL] = ug_page({"wiki_tab": {"content": TAB_BODY}})
+    got = provider().lookup("X", "Y", chord_url=TABS_URL)
+    assert got["pinned"] is True and "pin_failed" not in got
+
+
+def test_saving_and_finding_a_chart_agree_on_decorated_names():
+    p = provider(chords_sources=["local"])
+    p.save_local("Radiohead - Topic", "Creep (Official Video)", "{title: Creep}\n[Am]hello [F]world")
+    assert p.lookup("Radiohead - Topic", "Creep (Official Video)")["source"] == "local"
+    assert p.lookup("Radiohead", "Creep")["source"] == "local"      # the cleaned name finds it too
+    assert p.delete_local("Radiohead", "Creep (Official Video)") is True
+    assert p.lookup("Radiohead", "Creep")["source"] == "none"

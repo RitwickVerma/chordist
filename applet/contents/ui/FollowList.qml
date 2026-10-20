@@ -87,7 +87,9 @@ Item {
         anchors.fill: parent
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        onMovementStarted: root.lastUserScroll = Date.now()
-        onFlickStarted: root.lastUserScroll = Date.now()
+        // Grabbing the list ends any glide in progress: the animation would otherwise
+        // keep pulling against the user's own hand.
+        onMovementStarted: { root.lastUserScroll = Date.now(); glide.stop() }
+        onFlickStarted: { root.lastUserScroll = Date.now(); glide.stop() }
     }
 }

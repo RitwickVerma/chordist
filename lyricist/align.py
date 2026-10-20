@@ -21,6 +21,7 @@ Automatic Retrieval of Song Lyrics".)
 
 from __future__ import annotations
 
+import functools
 from typing import Any
 
 from . import titles
@@ -42,6 +43,7 @@ def _edit_distance(a: str, b: str) -> int:
     return previous[-1]
 
 
+@functools.lru_cache(maxsize=1 << 17)
 def _token_match(a: str, b: str) -> bool:
     if a == b:
         return True
@@ -52,8 +54,11 @@ def _token_match(a: str, b: str) -> bool:
 
 def similarity(row: str, line: str) -> float:
     """How much a chart row and a lyric line look like the same words, 0..1."""
-    row_words = titles.tokens(row)
-    line_words = titles.tokens(line)
+    return _similarity(titles.tokens(row), titles.tokens(line))
+
+
+def _similarity(row_words: list[str], line_words: list[str]) -> float:
+    """``similarity`` on words already split, so a matrix does not split them n*m times."""
     if not row_words or not line_words:
         return 0.0
     # A one-word row ("haan", instrumental "x4") matches half the song, so it
@@ -81,10 +86,12 @@ def align(rows: list[str], lines: list[str]) -> list[int | None]:
     Returns, for each row, the index of the line it matched, or None.
     """
     n, m = len(rows), len(lines)
+    row_words = [titles.tokens(row) for row in rows]
+    line_words = [titles.tokens(line) for line in lines]
     substitution = [[0.0] * m for _ in range(n)]
     for i in range(n):
         for j in range(m):
-            score = similarity(rows[i], lines[j])
+            score = _similarity(row_words[i], line_words[j])
             substitution[i][j] = score - MIN_SIMILARITY if score >= MIN_SIMILARITY else 0.0
 
     value = [[0.0] * (m + 1) for _ in range(n + 1)]

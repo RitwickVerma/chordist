@@ -28,6 +28,7 @@ module-name = "lyricist"
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
 addopts = ["-q", "--tb=short"]
+markers = ["loopback: the test talks to a server it started on 127.0.0.1"]
 
 [tool.ruff]
 target-version = "py312"

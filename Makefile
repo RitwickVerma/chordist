@@ -87,7 +87,7 @@ lint-shell: ## shellcheck over the launcher and scripts
 
 lint-deadcode: ## vulture: Python nothing calls
 	$(UV) run vulture lyricist tools tests/python --min-confidence 60 \
-	    --ignore-names 'do_*,log_message,server_version,protocol_version,daemon_threads,allow_reuse_address,xdg,no_network'
+	    --ignore-names 'do_*,log_message,server_version,protocol_version,daemon_threads,allow_reuse_address,xdg,no_network,pytestmark,redirect_request'
 
 test: test-python test-js test-qml ## All tests
 

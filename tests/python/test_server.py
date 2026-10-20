@@ -14,6 +14,8 @@ import pytest
 from lyricist import server
 from lyricist.config import Config, config_path
 
+pytestmark = pytest.mark.loopback
+
 
 @pytest.fixture
 def api(monkeypatch):  # talks to its own loopback server through an opener, which the network guard allows
@@ -76,9 +78,39 @@ def test_post_must_be_json_typed(api):
     assert err.value.code == 415
 
 
+def _raw(api, request: bytes) -> bytes:
+    """Send bytes on a fresh connection and read until the server closes it."""
+    import socket
+
+    with socket.create_connection(("127.0.0.1", api.httpd.server_address[1]), timeout=5) as sock:
+        sock.sendall(request)
+        chunks = []
+        while True:
+            try:
+                data = sock.recv(65536)
+            except TimeoutError:
+                break
+            if not data:
+                break
+            chunks.append(data)
+    return b"".join(chunks)
+
+
 def test_oversized_and_malformed_bodies(api):
-    assert api("POST", "/api/prefs", raw=b"x" * (server.MAX_BODY + 1))[0] == 413
+    declared = server.MAX_BODY + 1
+    reply = _raw(api, b"POST /api/prefs HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n"
+                      b"Content-Length: %d\r\n\r\n" % declared)
+    assert reply.startswith(b"HTTP/1.1 413")
     assert api("POST", "/api/prefs", raw=b"{not json")[0] == 400
+
+
+def test_a_refused_request_closes_the_connection_so_its_body_is_not_a_second_request(api):
+    smuggled = b"GET /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
+    reply = _raw(api, b"POST /api/prefs HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: text/plain\r\n"
+                      b"Content-Length: %d\r\n\r\n" % len(smuggled) + smuggled)
+    assert reply.startswith(b"HTTP/1.1 415")
+    assert reply.count(b"HTTP/1.1 ") == 1, "the unread body was parsed as another request"
+    assert b"Connection: close" in reply
 
 
 def test_config_cannot_change_what_runs_or_where_it_listens(api):
@@ -122,3 +154,70 @@ def test_keyed_locks_are_forgotten_after_use():
     with locks.hold("a", "b"):
         assert len(locks._locks) == 1
     assert locks._locks == {}
+
+
+# ---- review pass ----
+
+def test_origin_null_is_refused_it_is_what_a_sandboxed_page_sends(api):
+    assert api("GET", "/api/health", headers={"Origin": "null"})[0] == 403
+
+
+def test_cross_site_fetch_metadata_is_refused(api):
+    assert api("GET", "/api/health", headers={"Sec-Fetch-Site": "cross-site"})[0] == 403
+    assert api("GET", "/api/health", headers={"Sec-Fetch-Site": "same-site"})[0] == 403
+    assert api("GET", "/api/health", headers={"Sec-Fetch-Site": "none"})[0] == 200
+    assert api("GET", "/api/health", headers={"Sec-Fetch-Site": "same-origin"})[0] == 200
+
+
+def test_the_widget_itself_sends_neither_and_is_let_in(api):
+    # Qt's XMLHttpRequest sends no Origin and no Sec-Fetch-*; this must keep working.
+    assert api("GET", "/api/health")[0] == 200
+    assert api("POST", "/api/prefs", {"artist": "a", "title": "b", "capo": 1})[0] == 200
+
+
+class _Recorder:
+    def __init__(self):
+        self.lyrics_calls = []
+        self.chord_calls = []
+
+
+@pytest.fixture
+def service(monkeypatch):
+    config = Config({"chords_sources": ["local"], "ug_enabled": False, "fingerprint_enabled": False,
+                     "min_request_interval": 0})
+    svc = server.Service(config)
+    rec = _Recorder()
+    monkeypatch.setattr(server.identity, "resolve", lambda *a, **k: {
+        "artist": "Real Artist", "title": "Real Title", "album": "Real Album", "source": "lrclib"})
+
+    def lyrics(artist, title, album="", duration=0.0, lyrics_id=None, refresh=False):
+        rec.lyrics_calls.append((artist, title))
+        return {"source": "none", "lines": []}
+
+    def chords(artist, title, duration=0.0, chord_url=None, album="", refresh=False):
+        rec.chord_calls.append((artist, title, chord_url))
+        return {"source": "none", "sections": [], "chord_names": []}
+
+    monkeypatch.setattr(svc.lyrics, "lookup", lyrics)
+    monkeypatch.setattr(svc.chords, "lookup", chords)
+    svc.rec = rec
+    return svc
+
+
+UG = "https://tabs.ultimate-guitar.com/tab/a/b-tabs-1"
+
+
+def test_a_pinned_tab_still_gets_lyrics_for_the_song_it_really_is(service):
+    service.song("Some Channel", "Junk Title (Official Video)", chord_url=UG)
+    assert service.rec.lyrics_calls == [("Real Artist", "Real Title")]
+    assert service.rec.chord_calls[0][2] == UG
+
+
+def test_a_pinned_lyrics_entry_still_searches_charts_by_the_real_song(service):
+    service.song("Some Channel", "Junk Title", lyrics_id="42")
+    assert service.rec.chord_calls[0][:2] == ("Real Artist", "Real Title")
+
+
+def test_with_both_pinned_the_song_is_not_second_guessed(service):
+    service.song("Some Channel", "Junk Title", lyrics_id="42", chord_url=UG)
+    assert service.rec.lyrics_calls == [("Some Channel", "Junk Title")]

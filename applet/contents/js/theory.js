@@ -31,22 +31,46 @@ function splitRoot(name) {
     return { root: root, rest: match[2] };
 }
 
-function transposeNote(note, semitones, table) {
-    if (PC[note] === undefined) return note;
-    var index = ((PC[note] + semitones) % 12 + 12) % 12;
-    return table[index];
+// How a chord root is written, the way guitarists and tab sites write it: Bb and
+// Eb major but F# and B, Gm and Cm but G#m and D#m. Used for transposed chords
+// and for the names of detected keys, so the two always agree.
+var MAJOR_KEY_NAMES = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+var MINOR_KEY_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
+
+// The quality of the chord whose text after the root is `rest`: "maj", "min",
+// "dim", "hdim" (half-diminished), "aug". Only a lowercase m means minor: a
+// capital M is a major seventh (CM7), as in "maj".
+function qualityOf(rest) {
+    if (/^(m7b5|\u00f8)/.test(rest)) return "hdim";
+    if (/^(dim|o|\u00b0)/i.test(rest)) return "dim";
+    if (/^(aug|\+)/i.test(rest)) return "aug";
+    if (/^(min|-)/i.test(rest) || /^m(?!aj)/.test(rest)) return "min";
+    return "maj";
+}
+function isMinorish(rest) {
+    var quality = qualityOf(rest);
+    return quality === "min" || quality === "dim" || quality === "hdim";
+}
+
+// A slash bass note follows its chord's spelling: sharps with a sharp root,
+// flats with a flat one, and for a natural root flats only around C and F.
+function spellBass(pc, mainRoot) {
+    var flats = /^[A-G]b/.test(mainRoot) || mainRoot === "C" || mainRoot === "F";
+    return (flats ? FLAT : SHARP)[pc];
 }
 
 function transposeChord(name, semitones) {
     if (isNoChord(name) || !semitones) return name;
     var parts = name.split("/");
     var main = splitRoot(parts[0]);
-    if (!main) return name;
-    var table = main.root.indexOf("b") >= 0 ? FLAT : SHARP;
-    var out = transposeNote(main.root, semitones, table) + main.rest;
+    if (!main || PC[main.root] === undefined) return name;
+    var shift = function (pc) { return ((pc + semitones) % 12 + 12) % 12; };
+    var names = isMinorish(main.rest) ? MINOR_KEY_NAMES : MAJOR_KEY_NAMES;
+    var root = names[shift(PC[main.root])];
+    var out = root + main.rest;
     for (var i = 1; i < parts.length; i++) {
         var bass = splitRoot(parts[i]);
-        if (bass) out += "/" + transposeNote(bass.root, semitones, table) + bass.rest;
+        if (bass && PC[bass.root] !== undefined) out += "/" + spellBass(shift(PC[bass.root]), root) + bass.rest;
         else out += "/" + parts[i];
     }
     return out;
@@ -61,8 +85,7 @@ function simplifyChord(name) {
     var parts = name.split("/");
     var main = splitRoot(parts[0]);
     if (!main) return name;
-    var minor = /^\s*(m(?!aj)|min|dim)/i.test(main.rest);
-    var out = main.root + (minor ? "m" : "");
+    var out = main.root + (isMinorish(main.rest) ? "m" : "");
     for (var i = 1; i < parts.length; i++) out += "/" + parts[i];
     return out;
 }
@@ -84,7 +107,8 @@ function chordColumns(chords, semitones, simplify) {
     for (var i = 0; i < chords.length; i++) {
         var name = chordName(chords[i].name, semitones, simplify);
         var col = chords[i].pos;
-        if (i > 0 && end > col) col = end + 1;
+        // Never touching the previous name: at least one space between them.
+        if (i > 0 && end >= col) col = end + 1;
         out.push({ col: col, len: name.length, name: name });
         end = col + name.length;
     }
@@ -135,50 +159,75 @@ function parseChord(name) {
         var bassPart = splitRoot(halves[1]);
         if (bassPart && PC[bassPart.root] !== undefined) bass = PC[bassPart.root];
     }
-    var quality = "maj";
-    if (/^(m(?!aj)|min|-)/i.test(rest) && !/^M/.test(rest)) quality = "min";
-    if (/^(dim|o|°)/i.test(rest)) quality = "dim";
-    if (/^(aug|\+)/i.test(rest)) quality = "aug";
-    if (/^m7b5|^ø/i.test(rest)) quality = "hdim";
+    var quality = qualityOf(rest);
     var sus = /sus2/.test(rest) ? 2 : (/sus/.test(rest) ? 4 : 0);
     return { name: name, root: PC[main.root], rootName: main.root, rest: rest, bass: bass, quality: quality, sus: sus };
 }
 
-// Semitones above the root for each chord tone, in the order they stack.
-function chordIntervals(parsed) {
-    if (!parsed) return [];
+// The tones of a chord as {interval, degree}: semitones above the root, and the
+// scale degree (3 = a third of some kind, 7 = a seventh) that decides which
+// letter names it.
+function chordDegrees(parsed) {
     var rest = parsed.rest;
-    var third = parsed.quality === "min" || parsed.quality === "dim" || parsed.quality === "hdim" ? 3 : 4;
-    var fifth = parsed.quality === "dim" || parsed.quality === "hdim" ? 6 : (parsed.quality === "aug" ? 8 : 7);
-    var tones = [0];
-    if (/^5$/.test(rest)) return [0, 7];
-    if (parsed.sus === 2) tones.push(2);
-    else if (parsed.sus === 4) tones.push(5);
-    else tones.push(third);
-    tones.push(fifth);
+    var quality = parsed.quality;
+    var flatFifth = quality === "dim" || quality === "hdim";
+    var out = [{ interval: 0, degree: 1 }];
+    if (/^5$/.test(rest)) return out.concat([{ interval: 7, degree: 5 }]);
+
+    if (parsed.sus === 2) out.push({ interval: 2, degree: 2 });
+    else if (parsed.sus === 4) out.push({ interval: 5, degree: 4 });
+    else out.push({ interval: quality === "min" || flatFifth ? 3 : 4, degree: 3 });
+
+    var fifth = flatFifth ? 6 : (quality === "aug" ? 8 : 7);
+    if (/b5|-5/.test(rest) && !flatFifth) fifth = 6;
+    if (/#5|\+5/.test(rest) && quality !== "aug") fifth = 8;
+    out.push({ interval: fifth, degree: 5 });
+
+    // Altered extensions are named first and taken out, so the 9 in "7b9" is not
+    // also read as a natural ninth.
+    var plain = rest.replace(/[b#]9|[b#]11|[b#]13/g, "");
+    var sixNine = /6\/?9/.test(plain);
     var seventh = null;
-    if (/maj7|maj9|maj11|maj13|M7|Δ/.test(rest)) seventh = 11;
-    else if (parsed.quality === "dim" && /7/.test(rest)) seventh = 9;
-    else if (/7|9|11|13/.test(rest) && !/add/.test(rest)) seventh = 10;
-    if (seventh === null && parsed.quality === "hdim") seventh = 10;
-    if (/6/.test(rest) && !/6\/9|69/.test(rest) && seventh === null) tones.push(9);
-    if (seventh !== null) tones.push(seventh);
-    if (/9|add9|add2|6\/9|69/.test(rest) && parsed.sus !== 2) tones.push(2);
-    if (/11|add11/.test(rest)) tones.push(5);
-    if (/13/.test(rest)) tones.push(9);
-    if (/b5|-5/.test(rest) && parsed.quality !== "dim" && parsed.quality !== "hdim") tones[2] = 6;
-    if (/#5|\+5/.test(rest) && parsed.quality !== "aug") tones[2] = 8;
-    return tones;
+    if (/maj7|maj9|maj11|maj13|M7|\u0394/.test(plain)) seventh = 11;
+    else if (quality === "dim" && /7/.test(plain)) seventh = 9;
+    else if (!sixNine && /7|9|11|13/.test(plain) && !/add/.test(plain)) seventh = 10;
+    if (seventh === null && quality === "hdim") seventh = 10;
+
+    if (/6/.test(plain) && seventh === null) out.push({ interval: 9, degree: 6 });
+    if (seventh !== null) out.push({ interval: seventh, degree: 7 });
+    if (/b9/.test(rest)) out.push({ interval: 1, degree: 9 });
+    else if (/#9/.test(rest)) out.push({ interval: 3, degree: 9 });
+    else if (/9|add2/.test(plain) && parsed.sus !== 2) out.push({ interval: 2, degree: 9 });
+    if (/#11/.test(rest)) out.push({ interval: 6, degree: 11 });
+    else if (/11/.test(plain)) out.push({ interval: 5, degree: 11 });
+    if (/b13/.test(rest)) out.push({ interval: 8, degree: 13 });
+    else if (/13/.test(plain)) out.push({ interval: 9, degree: 13 });
+    return out;
 }
 
-// The notes of a chord, spelled the way its own root is written.
+var LETTERS = ["C", "D", "E", "F", "G", "A", "B"];
+var LETTER_PC = [0, 2, 4, 5, 7, 9, 11];
+
+// One chord tone, spelled by letter: the third of Gm is the next-but-one letter,
+// B, lowered to Bb. (A table of sharps would call it A#.)
+function spellTone(rootName, interval, degree) {
+    var letter = (LETTERS.indexOf(rootName.charAt(0)) + degree - 1) % 7;
+    var target = (PC[rootName] + interval) % 12;
+    var drift = ((target - LETTER_PC[letter]) % 12 + 12) % 12;
+    if (drift > 6) drift -= 12;
+    var mark = drift > 0 ? "#" : "b";
+    var accidental = "";
+    for (var i = 0; i < Math.abs(drift); i++) accidental += mark;
+    return LETTERS[letter] + accidental;
+}
+
+// The notes of a chord, spelled from its own root.
 function chordTones(name) {
     var parsed = parseChord(name);
     if (!parsed) return [];
-    var table = parsed.rootName.indexOf("b") >= 0 ? FLAT : SHARP;
     var seen = {}, out = [];
-    chordIntervals(parsed).forEach(function (interval) {
-        var note = table[(parsed.root + interval) % 12];
+    chordDegrees(parsed).forEach(function (tone) {
+        var note = spellTone(parsed.rootName, tone.interval, tone.degree);
         if (!seen[note]) { seen[note] = true; out.push(note); }
     });
     return out;
@@ -186,10 +235,6 @@ function chordTones(name) {
 
 // ---------------------------------------------------------------- key detection
 
-// Keys are spelled the way guitarists and tab sites write them: Bb and Eb major
-// but F# and B, Gm and Cm but G#m and D#m.
-var MAJOR_KEY_NAMES = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
-var MINOR_KEY_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
 var MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 var MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10];
 // Quality of the chord built on each scale degree.
@@ -204,8 +249,9 @@ function degreeOf(pc, tonic, mode) {
 
 // Best-fit key for a list of chords (each counted `weights[name]` times, or
 // once). A chord that is diatonic to a key scores for it; the key's tonic chord
-// earns a bonus, as does opening or closing on it, which is what separates a
-// major key from its relative minor. Returns null when nothing parses.
+// earns a bonus, as does the first chord (and the last *new* one: the names are
+// in order of first appearance), which helps separate a major key from its
+// relative minor. Returns null when nothing parses.
 function detectKey(names, weights) {
     var chords = [];
     (names || []).forEach(function (name, index) {
@@ -277,10 +323,19 @@ function shapeCost(name) {
     if (!parsed) return 0;
     // The same root can be spelled three ways (Bb, A#, or as written).
     var spellings = [parsed.rootName, SHARP[parsed.root], FLAT[parsed.root]];
-    var base = 2.5;
-    for (var i = 0; i < spellings.length; i++) {
-        var known = OPEN_COST[spellings[i] + parsed.rest];
-        if (known !== undefined) { base = known; break; }
+    var lookup = function (suffix) {
+        for (var i = 0; i < spellings.length; i++) {
+            var known = OPEN_COST[spellings[i] + suffix];
+            if (known !== undefined) return known;
+        }
+        return null;
+    };
+    var base = lookup(parsed.rest);
+    if (base === null) {
+        // Not a shape listed above (A7sus4, Em9): the plain chord it grows from,
+        // plus a little for the extra finger, and never more than a full barre.
+        var triad = lookup(isMinorish(parsed.rest) ? "m" : "");
+        base = Math.min(2.5, (triad === null ? 2.5 : triad) + 0.75);
     }
     // A different bass note than the root is one more thing for the thumb.
     if (parsed.bass !== null && parsed.bass !== parsed.root) base += 0.5;

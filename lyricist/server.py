@@ -177,6 +177,17 @@ class Service:
             "uptime_seconds": round(time.time() - self.started),
         }
 
+    def _known_identity(self, artist: str, title: str, album: str = "") -> tuple[str, str, str]:
+        """The artist, title and album a song was resolved to, else as given.
+
+        For requests that act on a song (saving a chart, listing versions) and so
+        must use the same names its lookups used. Never starts an audio capture.
+        """
+        found = identity.resolve(self.config, self.lyrics, artist, title, 0.0, album, allow_fingerprint=False)
+        if not found:
+            return artist, title, album
+        return (found.get("artist") or artist, found.get("title") or title, found.get("album") or album)
+
     def _prepare_lyrics(
         self,
         artist: str,
@@ -186,18 +197,21 @@ class Service:
         romanise: Any,
         lyrics_id: Any = None,
         chord_url: Any = None,
+        refresh: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any], bool, dict[str, Any] | None]:
         """Lyrics and chart for one song, with the script decision applied.
 
         The raw streaming metadata is resolved to one canonical identity first,
         and both providers run on that answer, so they can never disagree about
-        which song is playing.  A hand-picked lyrics id or chord url already
-        names the version, so the song underneath it is not second-guessed.
+        which song is playing.  When both a lyrics id and a chord url are
+        hand-picked they already name the song, so it is not second-guessed.
         """
         with self._locks.hold("song", artist, title, album, str(lyrics_id or ""), str(chord_url or "")):
-            if lyrics_id or chord_url:
+            if lyrics_id and chord_url:
                 canonical: dict[str, Any] | None = None
             else:
+                # One pin leaves the other half of the song still to find, and
+                # that search wants the real artist and title, not the metadata.
                 canonical = identity.resolve(
                     self.config, self.lyrics, artist, title, duration, album
                 )
@@ -209,13 +223,15 @@ class Service:
             else:
                 l_artist, l_title, l_album = artist, title, album
 
-            lyrics = self.lyrics.lookup(l_artist, l_title, l_album, duration, lyrics_id=lyrics_id)
+            lyrics = self.lyrics.lookup(
+                l_artist, l_title, l_album, duration, lyrics_id=lyrics_id, refresh=refresh
+            )
             # Soundtracks are often filed under the film name on Ultimate Guitar
             # ("Lootera - Zinda"), so hand the canonical album to the chord
             # search as an extra query hint.
             hint_album = l_album or (lyrics or {}).get("album") or album
             chart = self.chords.lookup(
-                l_artist, l_title, duration, chord_url=chord_url, album=hint_album
+                l_artist, l_title, duration, chord_url=chord_url, album=hint_album, refresh=refresh
             )
             # Align the chart rows to the lyric timings here, in the backend, so
             # the widget follows one monotonic schedule instead of re-deriving it
@@ -249,6 +265,7 @@ class Service:
         romanise: Any = None,
         lyrics_id: Any = None,
         chord_url: Any = None,
+        refresh: bool = False,
     ) -> dict[str, Any]:
         if not title:
             return {
@@ -259,7 +276,7 @@ class Service:
             }
 
         lyrics, chart, romanised, canonical = self._prepare_lyrics(
-            artist, title, album, duration, romanise, lyrics_id, chord_url
+            artist, title, album, duration, romanise, lyrics_id, chord_url, refresh
         )
 
         # The canonical identity is what the lyrics and the chart were both
@@ -310,10 +327,15 @@ class Service:
         return lyrics
 
     def versions(self, artist: str, title: str, album: str = "", duration: float = 0.0) -> dict[str, Any]:
-        """Every lyrics and chart version on offer, for when the pick is wrong."""
+        """Every lyrics and chart version on offer, for when the pick is wrong.
+
+        Searched under the identity the automatic pick used, so the list is of
+        the same song, not of whatever the raw metadata happens to spell.
+        """
+        artist, title, album = self._known_identity(artist, title, album)
         return {
             "lyrics": self.lyrics.candidates(artist, title, album, duration),
-            "charts": self.chords.candidates(artist, title),
+            "charts": self.chords.candidates(artist, title, album=album),
         }
 
     def get_prefs(self, artist: str, title: str) -> dict[str, Any]:
@@ -322,7 +344,14 @@ class Service:
     def set_prefs(self, artist: str, title: str, values: dict[str, Any]) -> dict[str, Any]:
         return self.prefs.update(artist, title, values)
 
+    def delete_local(self, artist: str, title: str) -> bool:
+        artist, title, _album = self._known_identity(artist, title)
+        return self.chords.delete_local(artist, title)
+
     def paste(self, artist: str, title: str, text: str, fmt: str = "auto") -> dict[str, Any]:
+        # Saved under the song's resolved name: lookups run on it, so a chart
+        # saved under a decorated video title would never be found again.
+        artist, title, _album = self._known_identity(artist, title)
         parsed = self.chords.save_local(artist, title, text, fmt)
         names = parsed.get("chord_names") or []
         return {
@@ -399,6 +428,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         # No CORS headers, on purpose. The widget's XMLHttpRequest does not need
         # them, and without them a web page in the browser can neither read an
         # answer from this loopback service nor pass a preflight to change it.
@@ -408,6 +439,15 @@ class Handler(BaseHTTPRequestHandler):
                 # The widget drops the connection whenever it refetches or its
                 # popup closes; there is nobody left to receive this.
                 self.wfile.write(body)
+
+    def _refuse(self, exc: RequestError) -> None:
+        """Answer a refused request, then drop the connection.
+
+        A refusal happens before the body is read, so on a kept-alive connection
+        those unread bytes would be parsed as the next request.
+        """
+        self.close_connection = True
+        self._send({"error": str(exc)}, status=exc.status)
 
     def _query(self) -> dict[str, str]:
         return {key: values[0] for key, values in parse_qs(urlparse(self.path).query).items()}
@@ -423,11 +463,16 @@ class Handler(BaseHTTPRequestHandler):
         host = self.headers.get("Host")
         if _is_loopback(_hostname(configured)) and host and not _is_loopback(_hostname(host)):
             raise RequestError(403, "unexpected Host header")
+        # The widget's own XMLHttpRequest sends neither Origin nor Sec-Fetch-*; a
+        # browser always sends at least one when a page makes the request. "null"
+        # is what a sandboxed frame or a data: page sends, so it is refused too.
         origin = self.headers.get("Origin")
-        if origin and origin != "null":
+        if origin:
             parts = urlparse(origin)
-            if parts.scheme in ("http", "https") and not _is_loopback((parts.hostname or "").lower()):
+            if parts.scheme not in ("http", "https") or not _is_loopback((parts.hostname or "").lower()):
                 raise RequestError(403, "cross-origin requests are not allowed")
+        if self.headers.get("Sec-Fetch-Site", "none") not in ("none", "same-origin"):
+            raise RequestError(403, "cross-site requests are not allowed")
         if writing and not (self.headers.get("Content-Type") or "").lower().startswith("application/json"):
             # JSON-typed requests cannot be sent cross-site without a preflight.
             raise RequestError(415, "send application/json")
@@ -457,7 +502,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._send(route(self._query()))
         except RequestError as exc:
-            self._send({"error": str(exc)}, status=exc.status)
+            self._refuse(exc)
         except (BrokenPipeError, ConnectionResetError):
             # A client that goes away mid-request is normal here: the widget
             # refetches on every track change and its popup closes freely.
@@ -475,6 +520,7 @@ class Handler(BaseHTTPRequestHandler):
             return svc.song(
                 q.get("artist", ""), q.get("title", ""), q.get("album", ""),
                 _as_float(q.get("duration")), q.get("romanise"), q.get("lyrics_id"), q.get("chord_url"),
+                refresh=q.get("refresh") == "1",
             )
 
         def lyrics(q: dict[str, str]) -> Any:
@@ -551,7 +597,7 @@ class Handler(BaseHTTPRequestHandler):
             self._guard(True)
             body = self._body()
         except RequestError as exc:
-            self._send({"error": str(exc)}, status=exc.status)
+            self._refuse(exc)
             return
         self._handle(self._post_routes(body), writing=True)
 
@@ -559,9 +605,7 @@ class Handler(BaseHTTPRequestHandler):
         svc = self.service
         self._handle(
             {
-                "/api/local": lambda q: {
-                    "removed": svc.chords.delete_local(q.get("artist", ""), q.get("title", ""))
-                }
+                "/api/local": lambda q: {"removed": svc.delete_local(q.get("artist", ""), q.get("title", ""))}
             }
         )
 
@@ -579,6 +623,8 @@ def serve(config: Config | None = None) -> None:
     config = config or Config.load()
     server = Server(config)
     host, port = server.server_address[:2]
+    if not _is_loopback(_hostname(str(host))):
+        log.warning("listening on %s, not loopback: anything that can reach this port can use it", host)
     log.info("lyricistd %s listening on http://%s:%s", __version__, host, port)
     try:
         server.serve_forever()

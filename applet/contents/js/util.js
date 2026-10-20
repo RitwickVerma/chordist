@@ -43,8 +43,17 @@ function colorHex(color) {
 // 919678 -> "920k", 19041965 -> "19M": view and favourite counts at a glance.
 function compactCount(value) {
     if (value === null || value === undefined || !isFinite(value)) return ""
-    if (value >= 1000000) return (value >= 10000000 ? Math.round(value / 1000000) : Math.round(value / 100000) / 10) + "M"
-    if (value >= 1000) return (value >= 10000 ? Math.round(value / 1000) : Math.round(value / 100) / 10) + "k"
+    function scaled(unit) {
+        // One decimal below ten, none above; a count that rounds up to the next
+        // unit (999999 -> "1000k") is promoted ("1M").
+        var n = value / unit
+        return n >= 10 ? Math.round(n) : Math.round(n * 10) / 10
+    }
+    if (value >= 999500) return scaled(1000000) + "M"
+    if (value >= 1000) {
+        var thousands = scaled(1000)
+        return thousands >= 1000 ? "1M" : thousands + "k"
+    }
     return String(Math.round(value))
 }
 

@@ -21,10 +21,13 @@ metadata cannot be resolved some other way.
 browser, so the service defends itself:
 
 - no CORS headers: a page cannot read an answer, and cannot pass a preflight to change anything;
-- `Host` must be loopback (against DNS rebinding) and a cross-site `Origin` is refused;
+- `Host` must be loopback (against DNS rebinding); any `Origin` that is not loopback is refused, `null` (what a
+  sandboxed frame sends) included, and so is any `Sec-Fetch-Site` other than `none`/`same-origin`. The widget's own
+  requests carry neither header;
+- a refused request closes its connection, so its unread body cannot be taken for a second request;
 - writes must be `application/json`, which a browser cannot send cross-site without a preflight;
 - bodies are capped at 1 MiB, and a pinned tab may only be an `https://*.ultimate-guitar.com` address (it used to
-  be any URL, which allowed fetching local files and LAN hosts);
+  be any URL, which allowed fetching local files and LAN hosts); redirects may only lead to http(s);
 - `POST /api/config` accepts a fixed list of safe keys. Which program runs (`songrec_path`), where the service
   listens and where it writes are edited in `config.json` only;
 - the systemd unit adds `NoNewPrivileges`, a read-only view of the filesystem apart from its three directories,

@@ -93,18 +93,29 @@ def user_agent(contact: str = "") -> str:
 
 
 class Config:
-    """A dict-like configuration with dotted-free, plain key access."""
+    """A dict-like configuration with dotted-free, plain key access.
+
+    Values come from the built-in defaults, then the file. Only what the file
+    holds or what is set afterwards is *explicit*: that, and nothing else, is
+    what ``save`` writes, so a default that changes in a later release still
+    reaches everyone who never chose a value.
+    """
 
     def __init__(self, values: dict[str, Any] | None = None) -> None:
         self._values = dict(DEFAULTS)
+        self._explicit: dict[str, Any] = {}
         if values:
-            self._values.update({k: v for k, v in values.items() if v is not None})
+            for key, value in values.items():
+                if value is not None:
+                    self._values[key] = value
+                    self._explicit[key] = value
 
     def __getitem__(self, key: str) -> Any:
         return self._values.get(key, DEFAULTS.get(key))
 
     def __setitem__(self, key: str, value: Any) -> None:
         self._values[key] = value
+        self._explicit[key] = value
 
     def get(self, key: str, default: Any = None) -> Any:
         return self._values.get(key, default)
@@ -118,7 +129,8 @@ class Config:
         if path.is_file():
             try:
                 with path.open(encoding="utf-8") as fh:
-                    return cls(json.load(fh))
+                    loaded = json.load(fh)
+                return cls(loaded if isinstance(loaded, dict) else None)
             except (OSError, json.JSONDecodeError):
                 # A broken config must never stop the service from starting.
                 return cls()
@@ -131,10 +143,11 @@ class Config:
         if path.is_file():
             try:
                 with path.open(encoding="utf-8") as fh:
-                    merged = json.load(fh)
+                    loaded = json.load(fh)
+                merged = loaded if isinstance(loaded, dict) else {}
             except (OSError, json.JSONDecodeError):
                 merged = {}
-        merged.update(self._values)
+        merged.update(self._explicit)
         tmp = path.with_suffix(".json.tmp")
         with tmp.open("w", encoding="utf-8") as fh:
             json.dump(merged, fh, indent=2, sort_keys=True)

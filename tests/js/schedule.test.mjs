@@ -105,3 +105,25 @@ test("sections with no timed line are left out", () => {
     const empty = [{ kind: "section", name: "Ghost" }, { kind: "section", name: "Real" }, { kind: "line", lyric: "x", chords: [] }];
     assert.deepEqual(plain(S.sectionSpans(empty, [null, null, 5], 50)).map((s) => s.name), ["Real"]);
 });
+
+test("the countdown reaches zero when the chord actually switches, lag included", () => {
+    const events = S.chordEvents(rows, S.rowTimes(rows, [10, 20, 30, 40], 100), 100);
+    const lag = 0.25;
+    const g = events.find((e) => e.name === "G");
+    // the highlight switches to G at g.t + lag; the countdown must hit zero then
+    const just = S.chordAt(events, g.t + lag - 0.01, lag);
+    assert.equal(just.current.name, "C");
+    assert.ok(just.nextIn < 0.05, `nextIn ${just.nextIn}`);
+    assert.equal(S.chordAt(events, g.t + lag, lag).current.name, "G");
+});
+
+test("chords of a zero-length row keep their written order", () => {
+    const flat = [
+        { kind: "line", lyric: "", instrumental: true, chords: [{ pos: 0, name: "C" }, { pos: 1, name: "G" }, { pos: 2, name: "Am" }] },
+        { kind: "line", lyric: "x", chords: [] },
+    ];
+    for (let n = 0; n < 5; n++) {
+        const names = S.chordEvents(flat, [5, 5], 5).map((e) => e.name);
+        assert.deepEqual(names, ["C", "G", "Am"]);
+    }
+});

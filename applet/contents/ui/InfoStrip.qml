@@ -21,7 +21,7 @@ Flow {
     readonly property bool standardTuning: tuningNotes.length === 0 || tuningNotes.join(" ") === "E A D G B E"
     readonly property string difficulty: meta.difficulty || ""
 
-    visible: !!(applet && applet.chordsAvailable) && children.length > 0
+    visible: !!(applet && applet.chordsAvailable)
     spacing: Kirigami.Units.smallSpacing
 
     InfoChip {

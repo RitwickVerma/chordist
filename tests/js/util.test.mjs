@@ -32,6 +32,10 @@ test("compactCount abbreviates view counts", () => {
     assert.equal(U.compactCount(919678), "920k");
     assert.equal(U.compactCount(19041965), "19M");
     assert.equal(U.compactCount(null), "");
+    assert.equal(U.compactCount(999999), "1M");
+    assert.equal(U.compactCount(999500), "1M");
+    assert.equal(U.compactCount(9999), "10k");
+    assert.equal(U.compactCount(0), "0");
 });
 
 test("staffHtml escapes rows and colours fret numbers", () => {

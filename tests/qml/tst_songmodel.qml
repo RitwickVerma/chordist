@@ -55,7 +55,12 @@ TestCase {
         model.positionSec = 0
         model.lyricsOffset = 0
     }
-    function init() { load(chart({})) }
+    function init() {
+        model.track = "Song"             // first: a track change marks the chart stale
+        load(chart({}))
+        model._prefsFor = { artist: "Artist", title: "Song" }
+        model._prefsSave.stop()
+    }
 
     // ----------------------------------------------------------------- rows
     function test_rows_and_times_line_up() {
@@ -335,5 +340,80 @@ TestCase {
         compare(model.versionsOpen, false)
         compare(model.stale, true)
         model.track = "Song"
+    }
+
+    // ------------------------------------------------------ review-pass fixes
+    function test_toggle_agrees_with_the_default_it_reads_with() {
+        // lyricSync reads as true when unset, so one toggle must turn it off
+        verify(model.lyricSync)
+        model.toggle("lyricSync")
+        verify(!model.lyricSync)
+        model.toggle("lyricSync")
+        verify(model.lyricSync)
+    }
+
+    function test_two_spellings_of_one_chord_add_their_counts() {
+        load(chart({ sections: [{ name: "V", lines: [
+            line("a b c", [{ pos: 0, name: "C#" }, { pos: 2, name: "Db" }, { pos: 4, name: "Db" }])] }], row_times: [1] }))
+        var weights = model.soundingWeights
+        var total = 0
+        for (var name in weights) total += weights[name]
+        compare(total, 3)
+    }
+
+    function test_a_section_too_short_to_loop_is_refused() {
+        model.loopSection({ name: "blip", start: 10, end: 10.4 })
+        verify(model.loopSpan === null)
+        model.loopSection({ name: "ok", start: 10, end: 14 })
+        compare(model.loopSpan.name, "ok")
+    }
+
+    function test_applying_a_songs_prefs_does_not_save_them_back() {
+        model.applyPrefs({ capo: 3, transpose: 2, offset: 0.5 }, 0)
+        compare(model.capo, 3)
+        verify(!model._prefsSave.running, "loading must not schedule a save")
+        model.applyPrefs({}, 2)
+        verify(!model._prefsSave.running)
+    }
+
+    function test_a_users_change_does_schedule_a_save() {
+        model.capo = 5
+        verify(model._prefsSave.running)
+    }
+
+    function test_prefs_belong_to_the_song_they_were_loaded_for() {
+        model.transpose = 2
+        model.track = "Next song"            // the track moves on before the save fires
+        var body = model.prefsBody()
+        compare(body.title, "Song")          // ...but the save still goes to the old one
+        compare(body.artist, "Artist")
+    }
+
+    function test_changing_track_flushes_a_pending_save_before_clearing_pins() {
+        model.pinnedChordUrl = "https://tabs.ultimate-guitar.com/tab/a/b-tabs-1"
+        model.capo = 4
+        verify(model._prefsSave.running)
+        model.track = "Another one"
+        verify(!model._prefsSave.running, "the pending save is flushed, not left to fire later")
+        compare(model.pinnedChordUrl, "")
+    }
+
+    function test_nothing_is_saved_before_a_song_has_loaded() {
+        model._prefsFor = null
+        verify(model.prefsBody() === null)
+    }
+
+    function test_a_non_ultimate_guitar_address_is_not_saved_as_a_chart() {
+        model.statusMessage = ""
+        model.submitPaste("https://example.com/some-page")
+        compare(model.statusMessage, "badaddress")
+    }
+
+    function test_shapes_already_in_hand_are_not_fetched_again() {
+        model.shapeVariants = { Bb: [{ frets: [1, 1, 1, 1, 1, 1] }], F: [{ frets: [1] }] }
+        var before = model._requestId
+        model.refreshShapes(["Bb", "F"])
+        compare(model._requestId, before)
+        verify(!model._shapeFetching, "no request was made")
     }
 }

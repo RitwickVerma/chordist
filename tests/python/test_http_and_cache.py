@@ -93,3 +93,50 @@ def test_an_unwritable_cache_never_breaks_a_request(tmp_path):
     cache.dir = blocker / "inside"          # mkdir under a regular file fails
     cache.set("k", {"a": 1})                # must not raise
     assert cache.get("k") is None
+
+
+def test_concurrent_writers_of_one_key_never_corrupt_it():
+    cache = DiskCache("t")
+    errors: list[Exception] = []
+
+    def writer(n: int) -> None:
+        try:
+            for _ in range(60):
+                cache.set("same", {"writer": n, "pad": "x" * 4000})
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=writer, args=(n,)) for n in range(8)]
+    for t in threads:
+        t.start()
+    stop = time.monotonic() + 3
+    while any(t.is_alive() for t in threads) and time.monotonic() < stop:
+        value = cache.get("same")             # a reader must never see a torn file
+        assert value is None or len(value["pad"]) == 4000
+    for t in threads:
+        t.join()
+    assert not errors
+    assert not list(cache.dir.glob("*.tmp")), "no temp files left behind"
+
+
+@pytest.mark.loopback
+def test_a_redirect_may_not_leave_http():
+    import socketserver
+    from http.server import BaseHTTPRequestHandler
+
+    class Redirect(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(302)
+            self.send_header("Location", "ftp://127.0.0.1:9/secret")
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    with socketserver.TCPServer(("127.0.0.1", 0), Redirect) as server:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            with pytest.raises(http.HttpError, match="HTTP 302"):
+                http.fetch(f"http://127.0.0.1:{server.server_address[1]}/", retries=0)
+        finally:
+            server.shutdown()
