@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Align a chord chart's lyric rows with the timed lyrics of the recording.
 
 A chart and a recording rarely agree line for line: the chart breaks one sung

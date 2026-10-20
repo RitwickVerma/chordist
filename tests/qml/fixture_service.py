@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """A Chordist service with canned data, for the QML harness and its tests.
 
 Serves the real HTTP API on the given port, but nothing leaves the machine:

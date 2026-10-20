@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 import QtQuick
 import "../js/theory.js" as Theory
 import "../js/schedule.js" as Schedule
@@ -273,6 +277,14 @@ QtObject {
         if (!list.length) return null
         return list[Math.min(voicingPick[name] || 0, list.length - 1)]
     }
+    // A chord tapped in the chart, shown on the Stage for a few seconds in place
+    // of the one being played.
+    property string previewChord: ""
+    function previewChordNamed(name) {
+        previewChord = name || ""
+        if (previewChord) _previewClear.restart()
+    }
+    property Timer _previewClear: Timer { interval: 5000; onTriggered: model.previewChord = "" }
     function cycleVoicing(name, step) {
         var count = variantsFor(name).length
         if (count < 2) return

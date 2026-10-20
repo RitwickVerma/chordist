@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Chord diagram data.
 
 No images and no network: a chord name is turned into fret/finger positions that

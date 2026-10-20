@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 // The widget's JS files are QML ".pragma library" scripts. This loads one into
 // a plain context (dropping the pragma, which is not JavaScript) and hands back
 // its top-level functions, so the logic is tested exactly as the widget runs it.

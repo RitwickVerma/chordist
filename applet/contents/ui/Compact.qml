@@ -1,7 +1,10 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import org.kde.plasma.components as PlasmaComponents3
 
 Item {
     id: compact

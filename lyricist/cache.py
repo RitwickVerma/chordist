@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """A tiny on-disk JSON cache.
 
 Deliberately dumb: one file per key, written atomically. The widget asks for
@@ -8,6 +12,7 @@ the same thing.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -46,7 +51,6 @@ class DiskCache:
         return data.get("value")
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
         payload = {
             "_stored_at": time.time(),
             "_ttl": self.ttl if ttl is None else ttl,
@@ -55,12 +59,14 @@ class DiskCache:
         path = self._path(key)
         tmp = path.with_suffix(".tmp")
         try:
+            self.dir.mkdir(parents=True, exist_ok=True)
             with tmp.open("w", encoding="utf-8") as fh:
                 json.dump(payload, fh, ensure_ascii=False)
             tmp.replace(path)
         except OSError:
             # A read-only or full cache directory must not break playback.
-            tmp.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
 
     def stats(self) -> dict[str, Any]:
         try:

@@ -38,7 +38,7 @@ grep -q '^ready' "$work/service.log" || { cat "$work/service.log"; exit 1; }
 for name in "${scenarios[@]}"; do
     at=9
     [[ $name == tab ]] && at=3
-    QT_QPA_PLATFORM=offscreen timeout 60 qml6 "$work/Shots.qml" -- "$name" "$out/$name.png" "$port" "$at" \
+    QT_QUICK_CONTROLS_STYLE="${QT_QUICK_CONTROLS_STYLE:-org.kde.desktop}" QT_QPA_PLATFORM=offscreen timeout 60 qml6 "$work/Shots.qml" -- "$name" "$out/$name.png" "$port" "$at" \
         >"$work/$name.log" 2>&1 || true
     if [[ -s "$out/$name.png" ]]; then echo "ok    $name"; else echo "FAIL  $name"; sed -n 1,20p "$work/$name.log"; fi
     grep -E "Error|error:|TypeError|ReferenceError|is not|Cannot" "$work/$name.log" | sort -u | head -8 || true

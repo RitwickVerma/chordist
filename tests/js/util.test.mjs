@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { load } from "./load.mjs";

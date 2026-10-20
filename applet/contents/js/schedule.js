@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 .pragma library
 
 // Timing for the song views: which chart row or lyric line the song has

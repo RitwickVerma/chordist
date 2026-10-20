@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 from __future__ import annotations
 
 import threading
@@ -80,3 +84,12 @@ def test_prefs_evict_the_stalest_not_the_first_written(monkeypatch):
     prefs.update("a", "1", {"capo": 3})  # touched again: now the freshest
     prefs.update("c", "3", {"capo": 4})
     assert prefs.get("a", "1") and prefs.get("c", "3") and not prefs.get("b", "2")
+
+
+def test_an_unwritable_cache_never_breaks_a_request(tmp_path):
+    blocker = tmp_path / "file"
+    blocker.write_text("not a directory")
+    cache = DiskCache("t")
+    cache.dir = blocker / "inside"          # mkdir under a regular file fails
+    cache.set("k", {"a": 1})                # must not raise
+    assert cache.get("k") is None

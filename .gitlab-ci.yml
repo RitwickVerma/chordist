@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+# SPDX-License-Identifier: MIT
+# Everything a container with no compositor can check: licences, ruff, vulture,
+# qmllint, shellcheck, and the three test suites (the QML one runs on Qt's
+# offscreen platform). The jobs run the same `make` targets a local machine runs,
+# so a red pipeline reproduces here. The screenshot harness (`make shots`) and
+# the real-shell check in docs/testing.md need KDE libraries and stay local.
+
+image: archlinux:latest
+
+stages: [check, test]
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  before_script:
+    # ORDER MATTERS: pacman installs git, so it must run before the first git call.
+    - pacman -Syu --noconfirm --needed --quiet git make reuse python uv nodejs shellcheck qt6-declarative
+    - git config --global --add safe.directory '*'
+
+reuse:
+  stage: check
+  script: [make lint-reuse]
+
+python:
+  stage: check
+  script: [make lint-python, make lint-deadcode]
+
+qml:
+  stage: check
+  script: [make lint-qml]
+
+shell:
+  stage: check
+  script: [make lint-shell]
+
+python-tests:
+  stage: test
+  script: [make test-python]
+
+js-tests:
+  stage: test
+  script: [make test-js]
+
+qml-tests:
+  stage: test
+  script: [make test-qml]

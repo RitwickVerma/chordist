@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 import QtQuick
 import QtTest
 import "../../applet/contents/ui"
@@ -180,6 +184,14 @@ TestCase {
         compare(model.voicingFor("Bb").frets.join(), "6,8,8,7,6,6")      // wraps
         compare(model.variantsFor("Nope").length, 0)
         verify(model.voicingFor("Nope") === null)
+    }
+
+    function test_a_previewed_chord_is_remembered_until_cleared() {
+        compare(model.previewChord, "")
+        model.previewChordNamed("Am")
+        compare(model.previewChord, "Am")
+        model.previewChordNamed("")
+        compare(model.previewChord, "")
     }
 
     // ----------------------------------------------------------------- loop

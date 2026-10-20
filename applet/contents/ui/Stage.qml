@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -14,9 +18,11 @@ Rectangle {
     // Off while another tab is showing.
     property bool active: true
 
-    readonly property string now: applet ? applet.nowChord : ""
-    readonly property string next: applet ? applet.nextChord : ""
-    readonly property real nextIn: applet ? applet.nextIn : -1
+    // A chord tapped in the chart takes over for a few seconds.
+    readonly property bool previewing: !!applet && applet.previewChord.length > 0
+    readonly property string now: previewing ? applet.previewChord : (applet ? applet.nowChord : "")
+    readonly property string next: previewing ? "" : (applet ? applet.nextChord : "")
+    readonly property real nextIn: previewing ? -1 : (applet ? applet.nextIn : -1)
     readonly property var nowShape: now ? applet.voicingFor(now) : null
     readonly property var nextShape: next ? applet.voicingFor(next) : null
     readonly property var tones: now ? Theory.chordTones(now) : []
@@ -74,6 +80,15 @@ Rectangle {
                     font.pointSize: Kirigami.Theme.defaultFont.pointSize * 2.6
                     font.weight: Font.Bold
                     color: Kirigami.Theme.highlightColor
+                }
+                InfoChip {
+                    visible: stage.previewing
+                    Layout.alignment: Qt.AlignVCenter
+                    text: i18n("Preview")
+                    highlighted: true
+                    interactive: true
+                    tip: i18n("You tapped this chord in the chart. Click to go back to the song.")
+                    onClicked: stage.applet.previewChordNamed("")
                 }
                 InfoChip {
                     visible: stage.roman.length > 0

@@ -1,0 +1,65 @@
+# AGENTS.md
+
+Operating guide for anyone (human or agent) changing this repo. [README.md](README.md) says what it is,
+[docs/architecture.md](docs/architecture.md) why it is shaped this way, [SECURITY.md](SECURITY.md) what leaves the
+machine.
+
+## Layout
+
+```
+applet/      the Plasma widget (a KPackage): main.qml is Plasma glue, SongModel.qml holds all state and logic,
+             the rest are views; js/ holds the pure logic (theory, schedule, tab layout)
+lyricist/    the local service (Python, standard library only), `lyricist serve`; data/ has the vendored chords-db
+bin/         lyricistd, the launcher the systemd unit runs
+packaging/   the systemd user unit
+tests/       python/ (pytest), js/ (node --test), qml/ (qmltestrunner + the screenshot harness)
+tools/       update-chords-db.py
+docs/        architecture, API, testing
+```
+
+## Run
+
+```sh
+make deps                    # what is missing
+make install                 # into ~/.local; restarts nothing
+systemctl --user restart lyricistd && systemctl --user restart plasma-plasmashell
+python3 -m lyricist chords "Oasis" "Wonderwall"      # the service's lookups from a terminal
+python3 -m lyricist doctor
+```
+
+## Test
+
+```sh
+make test      # pytest (no network), node --test, qmltestrunner (Qt 6, offscreen)
+make lint      # reuse, ruff, vulture, qmllint (warnings are errors), shellcheck
+make shots     # headless renders of the real QML against a fixture service -> build/shots
+```
+
+- `qmltestrunner` must be the **Qt 6** one (`/usr/lib/qt6/bin`); `/usr/bin/qmltestrunner` is Qt 5.
+- Output from quiet test runners can be mangled by a shell output filter; `rtk proxy <cmd>` shows it raw.
+- A UI change is not done until it has been rendered (`make shots`, look at the PNGs) and, if it touches
+  `main.qml`, `Compact.qml` or config, loaded in a real Plasma host: [docs/testing.md](docs/testing.md).
+
+## Rules
+
+- **Stable identifiers.** `com.ritwick.lyricist`, `lyricistd`, `lyricist/` and `~/.config|share|cache/lyricist`
+  stay as they are. Renaming them orphans an installed widget's panel slot, settings and saved charts.
+- **No Python dependencies in the service.** It is a login daemon installed by copying files. Reach for the
+  standard library; vendor *data* (as chords-db is) rather than adding a package.
+- **Use FOSS that already does the job** (Kirigami, Plasma components, chords-db, SongRec, LRCLIB) instead of
+  rewriting it. Hand-written code is for what nobody ships: chart and tab parsing, alignment, the capo calculator.
+- **Logic goes in `SongModel.qml` or `js/`**, not in views. Views draw and forward clicks. Pure functions get a
+  node test; model behaviour gets a `tst_songmodel.qml` case.
+- **The service never trusts its caller.** It fetches only `https://*.ultimate-guitar.com`, accepts POSTs only as
+  `application/json`, sends no CORS headers, checks `Host` and `Origin`, and `POST /api/config` changes only
+  the keys in `MUTABLE_CONFIG`. Do not loosen any of these; add a test if you touch them.
+- **A cache or prefs failure must never fail a request.** Reads and writes under the XDG directories are
+  best-effort.
+- **Timing is monotonic.** A chart row's time never goes backwards, and a line never lights before its time
+  (`syncLag`).
+- Unit-file sandboxing is real: new files the service writes must be under `~/.config/lyricist`,
+  `~/.local/share/lyricist` or the cache directory, or `ReadWritePaths` must grow.
+- QML: `Layout.fillHeight: false` on nested layouts that should not stretch (a hidden-row layout otherwise
+  soaks up spare height); methods and properties cannot start with a capital, so MPRIS fakes are plain objects.
+- Never push to the default branch; open a merge request. Never restart the owner's plasmashell or service
+  from a task: hand over the command.

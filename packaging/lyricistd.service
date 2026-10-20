@@ -1,7 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 [Unit]
-Description=Lyricist service (lyrics and guitar chords for the song you are playing)
-After=network-online.target
-Wants=network-online.target
+Description=Chordist service (lyrics, chords and tabs for the song you are playing)
+Documentation=https://gitlab.com/ritwick7/chordify
 
 [Service]
 Type=simple
@@ -9,6 +12,23 @@ ExecStart=%h/.local/bin/lyricistd serve
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 RestartSec=10
+
+# It talks to the network and writes three directories under the home, and
+# nothing else: no new privileges, a read-only view of the rest of the system.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+CacheDirectory=lyricist
+ReadWritePaths=-%h/.config/lyricist -%h/.local/share/lyricist
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+MemoryMax=400M
 
 [Install]
 WantedBy=default.target

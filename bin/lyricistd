@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 #
 # Launcher for the lyricist service.
 #
-# Works both straight out of the git checkout (where bin/ sits next to the
-# lyricist/ package) and from an installed copy in ~/.local (where the package
-# lives in ~/.local/lib/lyricist).
+# Works straight out of the git checkout (bin/ next to the lyricist/ package) and
+# from an installed copy (<prefix>/lib/lyricist, ~/.local by default).
 #
 set -euo pipefail
 
@@ -12,7 +16,9 @@ self="$(readlink -f "${BASH_SOURCE[0]}")"
 here="$(dirname "$self")"
 
 if [[ -d "$here/../lyricist" ]]; then
-    root="$(cd "$here/.." && pwd)"
+    root="$(cd "$here/.." && pwd)"            # a git checkout: bin/ next to lyricist/
+elif [[ -d "$here/../lib/lyricist/lyricist" ]]; then
+    root="$(cd "$here/../lib/lyricist" && pwd)"   # installed under a prefix
 else
     root="${LYRICIST_LIB:-$HOME/.local/lib/lyricist}"
 fi

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -26,10 +30,8 @@ ColumnLayout {
         alignment: Qt.AlignLeft
         actions: [
             Kirigami.Action {
-                text: i18n("Transpose down")
+                text: "\u2212"
                 tooltip: i18n("Transpose down a semitone")
-                icon.name: "go-down"
-                displayHint: Kirigami.DisplayHint.IconOnly
                 onTriggered: bar.applet.transpose = bar.applet.transpose - 1
             },
             Kirigami.Action {
@@ -43,10 +45,8 @@ ColumnLayout {
                 }
             },
             Kirigami.Action {
-                text: i18n("Transpose up")
+                text: "+"
                 tooltip: i18n("Transpose up a semitone")
-                icon.name: "go-up"
-                displayHint: Kirigami.DisplayHint.IconOnly
                 onTriggered: bar.applet.transpose = bar.applet.transpose + 1
             },
             Kirigami.Action {

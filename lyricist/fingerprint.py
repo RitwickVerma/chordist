@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Identify the track that is actually playing, from its audio.
 
 The browser's MPRIS metadata is unreliable: it reports the YouTube channel as

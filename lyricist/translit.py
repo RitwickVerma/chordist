@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Devanagari to Latin transliteration.
 
 Lyrics services often hand back a song's lyrics in its own script while chord

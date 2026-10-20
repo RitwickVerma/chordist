@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 .pragma library
 
 // Stands in for KDE's i18n() outside the Plasma shell: substitutes %1, %2 ...

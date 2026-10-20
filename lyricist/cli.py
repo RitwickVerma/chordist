@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Command line interface: ``lyricist <command>``.
 
 Handy on its own (``lyricist chords "Radiohead" "Creep"`` prints a chart to the

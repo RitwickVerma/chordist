@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """LRC parsing, including the enhanced (word-level) variant.
 
 LRCLIB returns either plain lyrics, ordinary synced LRC::

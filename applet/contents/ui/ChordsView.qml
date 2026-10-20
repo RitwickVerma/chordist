@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
@@ -64,6 +68,8 @@ Item {
     Timer { id: highlightTimer; interval: 2500; onTriggered: view.highlightChord = "" }
     function showChord(name) {
         if (!name) return
+        // With the Stage up, the tapped chord is shown there.
+        if (view.applet && view.applet.showStage) { view.applet.previewChordNamed(name); return }
         view.highlightChord = name
         var index = view.sectionChords.indexOf(name)
         var item = index < 0 ? null : diagramRow.children[index]

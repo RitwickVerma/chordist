@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 .pragma library
 
 // Fitting a tablature staff onto a narrow popup. A staff written for a wide

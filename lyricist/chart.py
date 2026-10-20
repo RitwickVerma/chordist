@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Parsing chord charts.
 
 Three input dialects are understood and normalised into one shape, so the
@@ -37,7 +41,6 @@ from typing import Any
 
 CH_OPEN = "[ch]"
 CH_CLOSE = "[/ch]"
-TAB_TOKENS = ("[tab]", "[/tab]")
 
 # A chord is a root note plus a pile of optional decoration. Deliberately
 # permissive (charts are hand-typed) but strict enough that ordinary words do

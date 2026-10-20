@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """Chord chart lookup: the user's own files first, then the network.
 
 Provider order is deliberate. A chart the user wrote or pasted always wins,
@@ -77,16 +81,6 @@ def _norm(text: str) -> str:
     return _SLUG_RE.sub(" ", (text or "").lower()).strip()
 
 
-# Separators a video title uses between the channel/uploader and the song. The
-# bare ones catch titles like "Sahil Samuel-Zakir" where the uploader left out
-# the space; the spaced forms are listed first so they win on a tie.
-_TITLE_SEPARATORS = (
-    " - ", " – ", " — ", " | ", " / ",
-    "- ", "– ", "— ", "| ", "/ ",
-    "-", "–", "—", "|",
-)
-
-
 def _strumming(tab_view: dict[str, Any]) -> list[dict[str, Any]]:
     """Strumming patterns as UG stores them (``measures`` is UG's own code)."""
     raw = tab_view.get("encode_strummings")
@@ -150,26 +144,6 @@ def ug_meta(data: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
         "strumming": strumming,
         "simplified_available": bool(tab_view.get("is_simplify_available")),
     }
-
-
-def _song_tail(title: str) -> str:
-    """The part of a video title after its last separator.
-
-    A song on a video site is titled "Channel / Collaborator - Song", and the
-    whole string is not something a tab site can search for. The part after the
-    last separator is nearly always the song itself, so it is worth one more
-    search when the full title comes back empty.
-    """
-    index = -1
-    width = 0
-    for separator in _TITLE_SEPARATORS:
-        found = title.rfind(separator)
-        if found > index:
-            index = found
-            width = len(separator)
-    if index < 0:
-        return ""
-    return title[index + width:].strip()
 
 
 class ChordProvider:

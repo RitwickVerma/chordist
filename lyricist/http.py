@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 """HTTP helpers shared by the providers.
 
 Two jobs: send a believable browser User-Agent (Ultimate Guitar will not talk
