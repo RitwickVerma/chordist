@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 
-from lyricist.config import DEFAULTS, Config, config_path
+from chordist.config import DEFAULTS, Config, config_path
 
 
 def test_saving_writes_only_what_was_set_not_every_default():

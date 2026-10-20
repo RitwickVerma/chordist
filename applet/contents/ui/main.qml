@@ -94,7 +94,7 @@ PlasmoidItem {
     // widget's saved configuration.
     Settings {
         id: uiSettings
-        category: "lyricist"
+        category: "chordist"
         property alias storedX: floating.x
         property alias storedY: floating.y
         property alias storedWidth: floating.width

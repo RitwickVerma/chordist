@@ -12,10 +12,10 @@ The bar every change must clear: **run it, do not just read it.**
 - A UI change comes with before/after renders from `make shots`, and a note of whether it was also loaded in
   `plasmawindowed` ([docs/testing.md](docs/testing.md)). Say what you verified and how.
 - "Wrong chord / wrong song" reports are most useful with the output of
-  `python3 -m lyricist chords "<artist>" "<title>" --json` and the track's metadata as the player reports it.
+  `python3 -m chordist chords "<artist>" "<title>" --json` and the track's metadata as the player reports it.
 
 Deliberate choices, not oversights, so please discuss before "fixing": no Python dependencies in the service,
-the original identifiers kept, the service on loopback with no CORS, chart scraping paced and cached, audio
+the service on loopback with no CORS, chart scraping paced and cached, audio
 identification off the critical path. [AGENTS.md](AGENTS.md) explains each.
 
 By contributing you agree to license your work under the project's MIT licence. This project is developed with AI

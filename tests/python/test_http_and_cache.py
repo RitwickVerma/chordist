@@ -9,9 +9,9 @@ import time
 
 import pytest
 
-from lyricist import http
-from lyricist.cache import DiskCache, key_for
-from lyricist.songprefs import SongPrefs
+from chordist import http
+from chordist.cache import DiskCache, key_for
+from chordist.songprefs import SongPrefs
 
 
 def test_throttle_spaces_a_host_but_not_two_hosts():
@@ -77,7 +77,7 @@ def test_prefs_clean_and_remember():
 
 
 def test_prefs_evict_the_stalest_not_the_first_written(monkeypatch):
-    monkeypatch.setattr("lyricist.songprefs._MAX_ENTRIES", 2)
+    monkeypatch.setattr("chordist.songprefs._MAX_ENTRIES", 2)
     prefs = SongPrefs()
     prefs.update("a", "1", {"capo": 1})
     prefs.update("b", "2", {"capo": 2})

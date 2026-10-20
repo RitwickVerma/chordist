@@ -1,7 +1,7 @@
 version = 1
 
 [[annotations]]
-path = "lyricist/data/guitar-chords.json"
+path = "chordist/data/guitar-chords.json"
 precedence = "override"
 SPDX-FileCopyrightText = "2016 David Rubert <https://github.com/tombatossals/chords-db>"
 SPDX-License-Identifier = "MIT"

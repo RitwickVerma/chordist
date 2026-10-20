@@ -8,9 +8,9 @@ import urllib.error
 
 import pytest
 
-from lyricist import lyrics
-from lyricist.config import Config
-from lyricist.http import HttpError, Throttle
+from chordist import lyrics
+from chordist.config import Config
+from chordist.http import HttpError, Throttle
 
 ENTRY = {"id": 7, "trackName": "Creep", "artistName": "Radiohead", "albumName": "Pablo Honey", "duration": 238,
          "syncedLyrics": "[00:10.00]When you were here before", "plainLyrics": "When you were here before"}

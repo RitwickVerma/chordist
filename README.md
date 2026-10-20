@@ -37,14 +37,8 @@ Needs Plasma 6, Python 3.12+ and `kpackagetool6`.
 ```sh
 git clone https://gitlab.com/ritwick7/chordify.git && cd chordify
 make deps        # what is missing, and the pacman line to fix it
-make install     # widget + service + systemd user unit, into ~/.local
-```
-
-`make install` restarts nothing. To start using it:
-
-```sh
-systemctl --user restart lyricistd
-systemctl --user restart plasma-plasmashell     # reloads the widget
+make install     # widget + service + systemd user unit, into ~/.local; starts the service
+systemctl --user restart plasma-plasmashell     # loads the widget
 ```
 
 Add **Chordist** to a panel. Then `make doctor` shows what the service can and cannot do on your machine.
@@ -68,7 +62,7 @@ click) are in the widget's configuration dialog.
 
 ## Configuration
 
-The service reads `~/.config/lyricist/config.json`; every key is optional. `lyricist config` prints the effective
+The service reads `~/.config/chordist/config.json`; every key is optional. `chordist config` prints the effective
 values.
 
 | Key | Default | |
@@ -82,7 +76,7 @@ values.
 | `min_request_interval` | `1.6` | seconds between requests to one host |
 | `negative_ttl_seconds` / `lyrics_negative_ttl_seconds` | 3 days / 6 hours | how long "nothing found" is remembered (the `⋮` menu's **Ask again** looks past it) |
 
-Your own charts live in `~/.local/share/lyricist/chords/` as ChordPro files; `lyricist local list|add|rm` manages them.
+Your own charts live in `~/.local/share/chordist/chords/` as ChordPro files; `chordist local list|add|rm` manages them.
 
 ## Privacy
 
@@ -98,7 +92,7 @@ Free software, used as it is rather than reimplemented:
 | | |
 | --- | --- |
 | [KDE Plasma](https://kde.org/plasma-desktop/), [Kirigami](https://develop.kde.org/frameworks/kirigami/), Qt | the widget, its chips, toolbars, tabs and MPRIS bridge |
-| [chords-db](https://github.com/tombatossals/chords-db) (MIT) | guitar fingerings, vendored in `lyricist/data` |
+| [chords-db](https://github.com/tombatossals/chords-db) (MIT) | guitar fingerings, vendored in `chordist/data` |
 | [LRCLIB](https://lrclib.net) | synced lyrics |
 | [SongRec](https://github.com/marin-m/SongRec) (GPL-3.0) | audio identification, run as a separate program |
 | [Ultimate Guitar](https://www.ultimate-guitar.com) | chord charts and tabs, fetched politely and cached |
@@ -120,9 +114,22 @@ make shots       # render the widget headless into build/shots
 and why, [docs/api.md](docs/api.md) lists the service's HTTP API, [CONTRIBUTING.md](CONTRIBUTING.md) the bar for a
 change.
 
-The widget keeps its original identifiers (`com.ritwick.lyricist`, `lyricistd`, `~/.config/lyricist`) so an
-installed copy upgrades in place and keeps its panel position, settings and saved charts. "Chordist" is the name you
-see.
+Everything is called Chordist: the widget (`com.ritwick.chordist`), the service (`chordistd`), the CLI (`chordist`),
+the Python package and `~/.config|.local/share|.cache/chordist`. Before 2.0 it was all called `lyricist`; see below.
+
+## Upgrading from the old "lyricist"
+
+`make install` does the move for you: it stops and removes the old `lyricistd` service, moves your config, saved
+charts, per-song settings and caches to the new `chordist` directories, and starts the new service. The widget itself
+is a different package now, so your panel still points at the old one until you run, once:
+
+```sh
+make migrate-panel      # stops plasmashell, repoints the panel entry, restarts it
+```
+
+That rewrites only the panel entry's `plugin=` line (with KDE's own `kwriteconfig6`, after a timestamped backup), so
+the widget keeps its place in the panel and every setting, and then removes the old widget package. Both steps are
+safe to run again.
 
 ## Licence
 

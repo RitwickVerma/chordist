@@ -26,7 +26,7 @@ from .config import Config, chords_dir
 from .http import HttpError, Throttle, fetch
 from .lyrics import clean
 
-log = logging.getLogger("lyricist.chords")
+log = logging.getLogger("chordist.chords")
 
 UG_BASE = "https://www.ultimate-guitar.com"
 # Kinds of tab the widget can show. Chords are tried first; a song nobody has

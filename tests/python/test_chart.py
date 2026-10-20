@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from lyricist import chart
+from chordist import chart
 
 UG_CHORDS = """[Intro]
 [ch]Am[/ch]  [ch]F[/ch]

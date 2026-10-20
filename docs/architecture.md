@@ -3,7 +3,7 @@
 Two programs and a data file:
 
 ```
-  player ──MPRIS──▶ Plasma widget (applet/) ──HTTP, loopback──▶ lyricistd (lyricist/) ──▶ LRCLIB
+  player ──MPRIS──▶ Plasma widget (applet/) ──HTTP, loopback──▶ chordistd (chordist/) ──▶ LRCLIB
   (Spotify,         main.qml  SongModel.qml  views                server.py               Ultimate Guitar
    browser, …)                                                    providers, cache        SongRec (audio)
                                                                   data/guitar-chords.json
@@ -88,7 +88,7 @@ the seventh fret, preferring the lower on a tie.
 
 - **Standard-library-only service.** A daemon that starts at login and is installed by copying files should not
   need a virtualenv. Data is vendored (chords-db) instead.
-- **Loopback HTTP, not D-Bus**, because QML's `XMLHttpRequest` is the simplest bridge and `lyricist` is also a CLI
+- **Loopback HTTP, not D-Bus**, because QML's `XMLHttpRequest` is the simplest bridge and `chordist` is also a CLI
   that prints the same data. The price is the hardening in [SECURITY.md](../SECURITY.md).
 - **A tab can only be fetched from Ultimate Guitar**, even when pinned by address.
 - **No fixed key table for fingerings.** chords-db covers 500+ chords with several positions each; the hand-written

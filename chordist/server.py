@@ -30,7 +30,7 @@ from .http import Throttle
 from .lyrics import LyricsProvider
 from .songprefs import SongPrefs
 
-log = logging.getLogger("lyricist.server")
+log = logging.getLogger("chordist.server")
 
 
 def _as_float(value: Any, default: float = 0.0) -> float:
@@ -409,7 +409,7 @@ def _is_loopback(host: str) -> bool:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = f"lyricistd/{__version__}"
+    server_version = f"chordistd/{__version__}"
     protocol_version = "HTTP/1.1"
 
     # Silence the default per-request stderr logging; we log our own way.
@@ -630,7 +630,7 @@ def serve(config: Config | None = None) -> None:
     host, port = server.server_address[:2]
     if not _is_loopback(_hostname(str(host))):
         log.warning("listening on %s, not loopback: anything that can reach this port can use it", host)
-    log.info("lyricistd %s listening on http://%s:%s", __version__, host, port)
+    log.info("chordistd %s listening on http://%s:%s", __version__, host, port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

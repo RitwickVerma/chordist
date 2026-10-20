@@ -28,7 +28,7 @@ S=$(mktemp -d); mkdir -p $S/{data,config,cache}
 XDG_DATA_HOME=$S/data kpackagetool6 -t Plasma/Applet -i applet
 XDG_DATA_HOME=$S/data XDG_CONFIG_HOME=$S/config XDG_CACHE_HOME=$S/cache \
   QT_ASSUME_STDERR_HAS_CONSOLE=1 QT_QPA_PLATFORM=offscreen \
-  timeout 20 dbus-run-session -- plasmawindowed com.ritwick.lyricist
+  timeout 20 dbus-run-session -- plasmawindowed com.ritwick.chordist
 ```
 
 It should run until the timeout (exit 124) and print no `QML`, `TypeError` or `ReferenceError` lines.
@@ -37,4 +37,4 @@ It should run until the timeout (exit 124) and print no `QML`, `TypeError` or `R
 
 To check the unit's sandboxing without installing it, run the service as a transient unit with the same properties
 and state outside `/tmp` (the unit has `PrivateTmp`), then `curl /api/health`, `POST /api/paste` and confirm
-the files land only in the data directory. The properties are the `[Service]` block of `packaging/lyricistd.service`.
+the files land only in the data directory. The properties are the `[Service]` block of `packaging/chordistd.service`.

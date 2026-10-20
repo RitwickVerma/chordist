@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from lyricist import shapes
+from chordist import shapes
 
 
 def test_open_c_is_the_textbook_shape():

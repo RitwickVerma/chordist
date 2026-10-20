@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from lyricist import align
+from chordist import align
 
 
 def chart(*lyrics):

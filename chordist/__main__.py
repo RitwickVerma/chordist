@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""``python -m lyricist`` entry point."""
+"""``python -m chordist`` entry point."""
 
 from __future__ import annotations
 

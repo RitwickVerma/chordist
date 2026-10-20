@@ -9,8 +9,8 @@ machine.
 ```
 applet/      the Plasma widget (a KPackage): main.qml is Plasma glue, SongModel.qml holds all state and logic,
              the rest are views; js/ holds the pure logic (theory, schedule, tab layout)
-lyricist/    the local service (Python, standard library only), `lyricist serve`; data/ has the vendored chords-db
-bin/         lyricistd, the launcher the systemd unit runs
+chordist/    the local service (Python, standard library only), `chordist serve`; data/ has the vendored chords-db
+bin/         chordistd, the launcher the systemd unit runs
 packaging/   the systemd user unit
 tests/       python/ (pytest), js/ (node --test), qml/ (qmltestrunner + the screenshot harness)
 tools/       update-chords-db.py
@@ -21,10 +21,10 @@ docs/        architecture, API, testing
 
 ```sh
 make deps                    # what is missing
-make install                 # into ~/.local; restarts nothing
-systemctl --user restart lyricistd && systemctl --user restart plasma-plasmashell
-python3 -m lyricist chords "Oasis" "Wonderwall"      # the service's lookups from a terminal
-python3 -m lyricist doctor
+make install                 # into ~/.local; (re)starts the service, never plasmashell
+systemctl --user restart plasma-plasmashell     # the owner's step
+python3 -m chordist chords "Oasis" "Wonderwall"      # the service's lookups from a terminal
+python3 -m chordist doctor
 ```
 
 ## Test
@@ -42,8 +42,10 @@ make shots     # headless renders of the real QML against a fixture service -> b
 
 ## Rules
 
-- **Stable identifiers.** `com.ritwick.lyricist`, `lyricistd`, `lyricist/` and `~/.config|share|cache/lyricist`
-  stay as they are. Renaming them orphans an installed widget's panel slot, settings and saved charts.
+- **One name.** Widget `com.ritwick.chordist`, service `chordistd`, package and CLI `chordist`, state in
+  `~/.config|.local/share|.cache/chordist`. Pre-2.0 it was `lyricist`; `tools/migrate-from-lyricist.sh` (tested in
+  `tests/python/test_migrate.py`) is the only place the old name may appear, besides the changelog. Renaming again
+  means a migration for the widget id (the panel stores it) and for the three state directories.
 - **No Python dependencies in the service.** It is a login daemon installed by copying files. Reach for the
   standard library; vendor *data* (as chords-db is) rather than adding a package.
 - **Use FOSS that already does the job** (Kirigami, Plasma components, chords-db, SongRec, LRCLIB) instead of
@@ -64,8 +66,8 @@ make shots     # headless renders of the real QML against a fixture service -> b
   timer fires, and putting a song's own settings back is not a user change (`_applying`).
 - **Timing is monotonic.** A chart row's time never goes backwards, and a line never lights before its time
   (`syncLag`).
-- Unit-file sandboxing is real: new files the service writes must be under `~/.config/lyricist`,
-  `~/.local/share/lyricist` or the cache directory, or `ReadWritePaths` must grow.
+- Unit-file sandboxing is real: new files the service writes must be under `~/.config/chordist`,
+  `~/.local/share/chordist` or the cache directory, or `ReadWritePaths` must grow.
 - QML: `Layout.fillHeight: false` on nested layouts that should not stretch (a hidden-row layout otherwise
   soaks up spare height); methods and properties cannot start with a capital, so MPRIS fakes are plain objects.
 - Never push to the default branch; open a merge request. Never restart the owner's plasmashell or service

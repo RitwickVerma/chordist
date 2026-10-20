@@ -9,7 +9,7 @@
         "Category": "Multimedia",
         "Description": "Guitar companion: live chords, tabs, lyrics, fingerings and a capo helper for whatever you are playing",
         "Icon": "view-media-lyrics",
-        "Id": "com.ritwick.lyricist",
+        "Id": "com.ritwick.chordist",
         "License": "MIT",
         "Name": "Chordist",
         "Version": "2.0.0",

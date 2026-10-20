@@ -21,6 +21,9 @@ A rebuild of the widget and a hardening of the service. Settings, saved charts a
 - Tests (pytest, node, qmltestrunner), a headless screenshot harness, CI, REUSE licensing, documentation.
 
 ### Changed
+- **Renamed: everything is Chordist now** (it was `lyricist`): widget `com.ritwick.chordist`, service `chordistd`,
+  CLI and package `chordist`, state in `~/.config|.local/share|.cache/chordist`. `make install` migrates the service
+  and your data; `make migrate-panel` moves the panel entry, keeping its position and settings.
 - `main.qml` is Plasma glue; all state and logic is in `SongModel.qml`, shared by the popup and the window. The
   chart's timing is computed once, in `schedule.js`, instead of by each view.
 - Kirigami `Chip` and `ActionToolBar` and the Plasma `TabBar` replace hand-built equivalents; the toolbar folds into

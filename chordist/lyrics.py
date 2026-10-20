@@ -23,7 +23,7 @@ from .cache import DiskCache, key_for
 from .config import Config, user_agent
 from .http import HttpError, Throttle, fetch_json
 
-log = logging.getLogger("lyricist.lyrics")
+log = logging.getLogger("chordist.lyrics")
 
 BASE = "https://lrclib.net/api"
 

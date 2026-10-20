@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
 # SPDX-License-Identifier: MIT
-"""Refresh lyricist/data/guitar-chords.json from the chords-db npm package.
+"""Refresh chordist/data/guitar-chords.json from the chords-db npm package.
 
 chords-db (https://github.com/tombatossals/chords-db, MIT, (c) 2016 David Rubert)
 is the fingering database behind the chord diagrams. This keeps what the service
@@ -21,7 +21,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-TARGET = Path(__file__).resolve().parent.parent / "lyricist" / "data" / "guitar-chords.json"
+TARGET = Path(__file__).resolve().parent.parent / "chordist" / "data" / "guitar-chords.json"
 
 
 def load(source: str | None) -> dict:

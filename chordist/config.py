@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Configuration for the Lyricist service.
+"""Configuration for the Chordist service.
 
-Loads ``~/.config/lyricist/config.json`` (or ``$XDG_CONFIG_HOME``), falling
+Loads ``~/.config/chordist/config.json`` (or ``$XDG_CONFIG_HOME``), falling
 back to built-in defaults for anything missing. Writing is always done by
 merging over the file that is already on disk so unrelated keys survive.
 """
@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-APP = "lyricist"
+APP = "chordist"
 
 DEFAULTS: dict[str, Any] = {
     # Local HTTP API the Plasma widget talks to.
@@ -86,7 +86,7 @@ def chords_dir() -> Path:
 def user_agent(contact: str = "") -> str:
     from . import __version__
 
-    agent = f"chordist-lyricist/{__version__} (KDE Plasma widget)"
+    agent = f"chordist/{__version__} (KDE Plasma widget)"
     if contact:
         agent += f" (contact: {contact})"
     return agent

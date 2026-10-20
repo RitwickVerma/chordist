@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from lyricist import server
-from lyricist.config import Config
+from chordist import server
+from chordist.config import Config
 
 CANONICAL = {"artist": "Real Artist", "title": "Real Title", "album": "Real Album", "source": "lrclib"}
 

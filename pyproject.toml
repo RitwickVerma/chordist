@@ -12,7 +12,7 @@ requires-python = ">=3.12"
 dependencies = []
 
 [project.scripts]
-lyricist = "lyricist.cli:main"
+chordist = "chordist.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.5", "vulture>=2.11"]
@@ -23,7 +23,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-root = ""
-module-name = "lyricist"
+module-name = "chordist"
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]

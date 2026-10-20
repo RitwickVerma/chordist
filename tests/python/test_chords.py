@@ -7,9 +7,9 @@ from __future__ import annotations
 import pytest
 from conftest import ug_page, ug_search_page
 
-from lyricist import chords
-from lyricist.config import Config
-from lyricist.http import Throttle
+from chordist import chords
+from chordist.config import Config
+from chordist.http import Throttle
 
 TAB_URL = "https://tabs.ultimate-guitar.com/tab/x/y-chords-1"
 TABS_URL = "https://tabs.ultimate-guitar.com/tab/x/y-tabs-2"

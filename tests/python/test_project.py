@@ -8,7 +8,7 @@ import json
 import tomllib
 from pathlib import Path
 
-import lyricist
+import chordist
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -16,4 +16,4 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_one_version_everywhere():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
     applet = json.loads((ROOT / "applet" / "metadata.json").read_text())["KPlugin"]["Version"]
-    assert lyricist.__version__ == pyproject == applet == (ROOT / "VERSION").read_text().strip()
+    assert chordist.__version__ == pyproject == applet == (ROOT / "VERSION").read_text().strip()

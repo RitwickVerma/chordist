@@ -59,8 +59,8 @@ def main() -> None:
         os.makedirs(path, exist_ok=True)
         os.environ[f"XDG_{name.upper()}_HOME"] = path
 
-    from lyricist import chords, identity, lyrics, server
-    from lyricist.config import Config
+    from chordist import chords, identity, lyrics, server
+    from chordist.config import Config
 
     config = Config(
         {

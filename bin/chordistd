@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
+#
+# Launcher for the chordist service.
+#
+# Works straight out of the git checkout (bin/ next to the chordist/ package) and
+# from an installed copy (<prefix>/lib/chordist, ~/.local by default).
+#
+set -euo pipefail
+
+self="$(readlink -f "${BASH_SOURCE[0]}")"
+here="$(dirname "$self")"
+
+if [[ -d "$here/../chordist" ]]; then
+    root="$(cd "$here/.." && pwd)"            # a git checkout: bin/ next to chordist/
+elif [[ -d "$here/../lib/chordist/chordist" ]]; then
+    root="$(cd "$here/../lib/chordist" && pwd)"   # installed under a prefix
+else
+    root="${CHORDIST_LIB:-$HOME/.local/lib/chordist}"
+fi
+
+export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m chordist "$@"

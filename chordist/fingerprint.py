@@ -27,7 +27,7 @@ from typing import Any
 from .cache import DiskCache, key_for
 from .config import Config
 
-log = logging.getLogger("lyricist.fingerprint")
+log = logging.getLogger("chordist.fingerprint")
 
 
 class FingerprintError(RuntimeError):
@@ -150,7 +150,7 @@ def identify(
     identity: dict[str, Any] | None = None
     try:
         secs = float(seconds) if seconds is not None else float(config.get("fingerprint_seconds", 6) or 6)
-        with tempfile.TemporaryDirectory(prefix="lyricist-fp-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="chordist-fp-") as tmp:
             wav = capture(secs, os.path.join(tmp, "capture.wav"))
             identity = recognize(wav, config)
         log.info(

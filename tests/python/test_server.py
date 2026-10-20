@@ -11,8 +11,8 @@ import urllib.request
 
 import pytest
 
-from lyricist import server
-from lyricist.config import Config, config_path
+from chordist import server
+from chordist.config import Config, config_path
 
 pytestmark = pytest.mark.loopback
 

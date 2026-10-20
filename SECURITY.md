@@ -7,17 +7,17 @@
 | a song starts | its artist, title, album and length | [LRCLIB](https://lrclib.net) (lyrics) and [Ultimate Guitar](https://www.ultimate-guitar.com) (charts, tabs), unless `ug_enabled` is `false` |
 | a track's metadata cannot be matched to a song, and `fingerprint_enabled` is `true` (the default) | about six seconds of the audio playing on your default output, recorded from its PipeWire monitor and turned into a fingerprint | Shazam's service, through [SongRec](https://github.com/marin-m/SongRec) |
 
-Nothing else. No account, no telemetry. Results are cached under `~/.cache/lyricist`; your charts and per-song
-settings stay in `~/.local/share/lyricist`.
+Nothing else. No account, no telemetry. Results are cached under `~/.cache/chordist`; your charts and per-song
+settings stay in `~/.local/share/chordist`.
 
-To keep lookups to text only, set `"fingerprint_enabled": false` in `~/.config/lyricist/config.json`. To stay
+To keep lookups to text only, set `"fingerprint_enabled": false` in `~/.config/chordist/config.json`. To stay
 offline except for lyrics, also set `"ug_enabled": false`. Fingerprinting records *whatever is playing*, including
 a call or a video if it is on that output at the time; that is why it is a switch, and why it only runs when the
 metadata cannot be resolved some other way.
 
 ## The local service
 
-`lyricistd` listens on `127.0.0.1:8788`. Anything on the machine can reach that, including a web page in your
+`chordistd` listens on `127.0.0.1:8788`. Anything on the machine can reach that, including a web page in your
 browser, so the service defends itself:
 
 - no CORS headers: a page cannot read an answer, and cannot pass a preflight to change anything;

@@ -44,7 +44,7 @@ _NOISE_WORDS = {
 # A segment containing these is a list of people, not a song name.
 _CREDIT_WORDS = {
     "feat", "ft", "featuring", "starring", "singer", "singers", "actor",
-    "actors", "composer", "lyricist", "director", "presented", "produced",
+    "actors", "composer", "chordist", "director", "presented", "produced",
     "vocals", "artist",
 }
 

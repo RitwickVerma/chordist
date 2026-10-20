@@ -1,6 +1,6 @@
 # Service HTTP API
 
-`lyricistd` on `http://127.0.0.1:8788` (see `host`/`port`). JSON in and out. `GET /api/health` is the quick check.
+`chordistd` on `http://127.0.0.1:8788` (see `host`/`port`). JSON in and out. `GET /api/health` is the quick check.
 Requests from a non-loopback `Host`, with any `Origin` that is not loopback (including `null`), or with
 `Sec-Fetch-Site` other than `none`/`same-origin`, get `403`. A refused request closes its connection. Writes must be
 `Content-Type: application/json` (`415` otherwise), bodies are capped at 1 MiB (`413`). There are no CORS headers.

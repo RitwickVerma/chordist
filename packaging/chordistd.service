@@ -8,7 +8,7 @@ Documentation=https://gitlab.com/ritwick7/chordify
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/lyricistd serve
+ExecStart=%h/.local/bin/chordistd serve
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
 RestartSec=10
@@ -18,8 +18,8 @@ RestartSec=10
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
-CacheDirectory=lyricist
-ReadWritePaths=-%h/.config/lyricist -%h/.local/share/lyricist
+CacheDirectory=chordist
+ReadWritePaths=-%h/.config/chordist -%h/.local/share/chordist
 PrivateTmp=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes

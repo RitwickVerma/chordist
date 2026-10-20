@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Command line interface: ``lyricist <command>``.
+"""Command line interface: ``chordist <command>``.
 
-Handy on its own (``lyricist chords "Radiohead" "Creep"`` prints a chart to the
+Handy on its own (``chordist chords "Radiohead" "Creep"`` prints a chart to the
 terminal) and essential for debugging what the widget will actually receive.
 """
 
@@ -103,7 +103,7 @@ def _doctor(config: Config) -> int:
             health = json.loads(response.read())
         report(True, "service answering", f"{url} (v{health.get('version')}, up {health.get('uptime_seconds', '?')}s)")
     except Exception as exc:
-        report(False, "service answering", f"{url}: {exc}", hint="start it: systemctl --user start lyricistd", required=True)
+        report(False, "service answering", f"{url}: {exc}", hint="start it: systemctl --user start chordistd", required=True)
     if config.get("fingerprint_enabled", True):
         for tool in ("pw-record", "pactl"):
             report(bool(shutil.which(tool)), f"{tool} on PATH", hint="needed to listen to the audio when metadata is junk")
@@ -115,8 +115,8 @@ def _doctor(config: Config) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="lyricist", description="synced lyrics and guitar chords")
-    parser.add_argument("--version", action="version", version=f"lyricist {__version__}")
+    parser = argparse.ArgumentParser(prog="chordist", description="synced lyrics and guitar chords")
+    parser.add_argument("--version", action="version", version=f"chordist {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("serve", help="run the local JSON API the widget uses")
@@ -164,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
             with urllib.request.urlopen(url, timeout=3) as response:
                 print(json.dumps(json.loads(response.read()), indent=2))
         except Exception as exc:
-            print(f"lyricistd is not answering at {url}: {exc}", file=sys.stderr)
+            print(f"chordistd is not answering at {url}: {exc}", file=sys.stderr)
             return 1
         return 0
 
@@ -220,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{item['slug']:<40} {item['size']:>7} bytes")
         elif args.action == "add":
             if len(args.args) < 3:
-                print("usage: lyricist local add ARTIST TITLE FILE", file=sys.stderr)
+                print("usage: chordist local add ARTIST TITLE FILE", file=sys.stderr)
                 return 2
             artist, title, path = args.args[0], args.args[1], args.args[2]
             with open(path, encoding="utf-8") as handle:
@@ -228,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"saved {artist} - {title}")
         elif args.action == "rm":
             if len(args.args) < 2:
-                print("usage: lyricist local rm ARTIST TITLE", file=sys.stderr)
+                print("usage: chordist local rm ARTIST TITLE", file=sys.stderr)
                 return 2
             print("removed" if provider.delete_local(args.args[0], args.args[1]) else "nothing matched")
         return 0
