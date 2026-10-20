@@ -27,33 +27,6 @@ function normalize(text) {
         .trim()
 }
 
-// Levenshtein distance, capped: only 0, 1 or "more than 1" are ever needed.
-function editDistance(a, b) {
-    if (a === b) return 0
-    if (Math.abs(a.length - b.length) > 1) return 2
-    var previous = []
-    for (var j = 0; j <= b.length; j++) previous[j] = j
-    for (var i = 1; i <= a.length; i++) {
-        var current = [i]
-        for (var k = 1; k <= b.length; k++) {
-            var cost = a.charAt(i - 1) === b.charAt(k - 1) ? 0 : 1
-            current[k] = Math.min(previous[k] + 1, current[k - 1] + 1, previous[k - 1] + cost)
-        }
-        previous = current
-    }
-    return previous[b.length]
-}
-
-// True when two normalised words are the same word despite spelling drift:
-// kahan/kahaan, vo/voh, chand/chaand, badalata/badalta, asaman/aasman.
-function tokenMatches(a, b) {
-    if (!a || !b) return false
-    if (a === b) return true
-    if (a.length >= 3 && b.indexOf(a) === 0) return true
-    if (b.length >= 3 && a.indexOf(b) === 0) return true
-    return editDistance(a, b) <= 1
-}
-
 function colorHex(color) {
     function channel(value) {
         var text = Math.round(Math.max(0, Math.min(1, value)) * 255).toString(16)
@@ -62,3 +35,29 @@ function colorHex(color) {
     return "#" + channel(color.r) + channel(color.g) + channel(color.b)
 }
 
+
+// 919678 -> "920k", 19041965 -> "19M": view and favourite counts at a glance.
+function compactCount(value) {
+    if (value === null || value === undefined || !isFinite(value)) return ""
+    if (value >= 1000000) return (value >= 10000000 ? Math.round(value / 1000000) : Math.round(value / 100000) / 10) + "M"
+    if (value >= 1000) return (value >= 10000 ? Math.round(value / 1000) : Math.round(value / 100) / 10) + "k"
+    return String(Math.round(value))
+}
+
+// True when text is written in Devanagari (so the romanise switch means something).
+function hasDevanagari(text) {
+    return /[\u0900-\u097f]/.test(String(text || ""))
+}
+
+// One staff of tablature as rich text: string labels dimmed, fret numbers in
+// the accent colour, everything else in the body colour. Rows are escaped, and
+// spacing is preserved so the bars still line up in a monospace font.
+function staffHtml(labels, rows, bodyColor, accentColor, dimColor) {
+    var lines = []
+    for (var i = 0; i < rows.length; i++) {
+        var row = escapeHtml(rows[i]).replace(/(\d+)/g, '<span style="color:' + accentColor + '">$1</span>')
+        lines.push('<span style="color:' + dimColor + '">' + escapeHtml(labels[i] || "") + '</span>'
+                   + '<span style="color:' + bodyColor + '">' + row + '</span>')
+    }
+    return '<span style="white-space:pre">' + lines.join("<br>") + "</span>"
+}

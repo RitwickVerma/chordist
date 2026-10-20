@@ -12,6 +12,9 @@ KCM.SimpleKCM {
     property alias cfg_lyricSync: lyricSync.checked
     property alias cfg_autoScroll: autoScroll.checked
     property alias cfg_showChordDiagrams: showChordDiagrams.checked
+    property alias cfg_showStage: showStage.checked
+    property alias cfg_showFingerNumbers: showFingerNumbers.checked
+    property alias cfg_leftHanded: leftHanded.checked
     property alias cfg_simplifyChords: simplifyChords.checked
     property alias cfg_scrollSpeed: scrollSpeed.value
     property alias cfg_compactScroll: compactScroll.checked
@@ -61,6 +64,24 @@ KCM.SimpleKCM {
             id: showChordDiagrams
             Kirigami.FormData.label: i18n("Chord diagrams:")
             text: i18n("Show fingering diagrams above the chart")
+        }
+
+        QQC.CheckBox {
+            id: showStage
+            Kirigami.FormData.label: i18n("Chord stage:")
+            text: i18n("Show the chord you are on, and the next one, large")
+        }
+
+        QQC.CheckBox {
+            id: showFingerNumbers
+            Kirigami.FormData.label: i18n("Finger numbers:")
+            text: i18n("Number the fingers on the big diagram")
+        }
+
+        QQC.CheckBox {
+            id: leftHanded
+            Kirigami.FormData.label: i18n("Left-handed:")
+            text: i18n("Mirror the chord diagrams")
         }
 
         QQC.CheckBox {
@@ -114,7 +135,8 @@ KCM.SimpleKCM {
             model: [
                 { text: i18n("Icon only"), value: "icon" },
                 { text: i18n("Icon and title"), value: "title" },
-                { text: i18n("Art, title and artist"), value: "full" }
+                { text: i18n("Art, title and artist"), value: "full" },
+                { text: i18n("Icon and the chord to play now"), value: "chord" }
             ]
         }
 

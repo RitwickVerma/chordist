@@ -3,80 +3,63 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents3
 
+// The popup (and the floating window, which is the same thing in a window).
 Item {
     id: full
 
     property var applet
 
-    // Exposed so a test harness (and anything else) can drive the tab.
-    property alias currentTab: tabs.currentIndex
+    // Exposed so a test harness can drive the tab.
+    property alias currentTab: tabs.current
 
-    // Plasma builds the popup once and keeps it alive afterwards, so
-    // Component.onCompleted is not enough to land on the configured tab. The
-    // applet bumps openCount every time the popup or the floating window opens,
-    // which puts the tab back on the default (Chords).
-    readonly property int openCount: (full.applet && full.applet.openCount !== undefined) ? full.applet.openCount : -1
-    // The applet is chord-first: with no lyrics there is no Lyrics tab to land
-    // on, so opening always falls through to the Chords tab.
-    onOpenCountChanged: {
-        var target = full.applet ? full.applet.defaultTabIndex : 0
-        if (!full.lyricsAvailable && target === 0) target = 1
-        tabs.currentIndex = target
+    // Plasma builds the popup once and keeps it alive, so Component.onCompleted
+    // is not enough to land on the configured tab: the model bumps openCount
+    // each time the popup or the window opens.
+    readonly property int openCount: applet ? applet.openCount : -1
+    onOpenCountChanged: tabs.current = full.defaultTab()
+    function defaultTab() {
+        var target = applet ? applet.defaultTabIndex : 1
+        return !full.lyricsAvailable && target === 0 ? 1 : target
     }
+    Component.onCompleted: tabs.current = defaultTab()
 
     readonly property bool lyricsAvailable: !!(applet && applet.lyricsAvailable)
-    onLyricsAvailableChanged: if (!full.lyricsAvailable && tabs.currentIndex === 0) tabs.currentIndex = 1
-
-    readonly property bool hasChart: !!(applet && applet.chart
-        && (applet.chart.sections || []).length > 0)
+    onLyricsAvailableChanged: if (!lyricsAvailable && tabs.current === 0) tabs.current = 1
+    readonly property bool hasChart: !!(applet && applet.chordsAvailable)
+    readonly property bool typing: {
+        var item = Window.activeFocusItem
+        return !!item && ("selectedText" in item)
+    }
+    readonly property var activeView: tabs.current === 0 ? lyricsView : chordsView
 
     readonly property string sourceLabel: {
         if (!applet) return ""
         var parts = []
         if (applet.lyrics && applet.lyrics.source) parts.push("LRCLIB")
         if (applet.chart && applet.chart.source) {
-            var source = applet.chart.source
+            const source = applet.chart.source
             if (source === "ultimate-guitar") parts.push("Ultimate Guitar")
             else if (source === "local") parts.push(i18n("Saved locally"))
             else if (source !== "none") parts.push(source)
         }
-        return parts.join("  \u00b7  ")
+        return parts.join("  ·  ")
     }
-
     readonly property string message: {
         var value = applet ? applet.statusMessage : ""
         if (value === "offline") return i18n("The Chordist service is not running.")
-        if (value === "nothing") return ""
-        return value
+        return value === "nothing" ? "" : value
     }
 
-    // True while a text field has focus (the paste box), so the single-key
-    // shortcuts below stand down while somebody is typing.
-    readonly property bool typing: {
-        var item = Window.activeFocusItem
-        return !!(item && item.selectedText !== undefined)
-    }
-
-    /** scroll the visible tab, for Up/Down */
-    function nudgeView(direction) {
-        var view = tabs.currentIndex === 0 ? lyricsView : chordsView
-        if (view && view.nudge) view.nudge(direction * Kirigami.Units.gridUnit * 3)
-    }
-
-    implicitWidth: Kirigami.Units.gridUnit * 30
-    implicitHeight: Kirigami.Units.gridUnit * 26
-
-    // Plasma sizes the popup from these when the representation sits in a
-    // layout (as plasmMusic's Full.qml does), so keep them in sync.
+    implicitWidth: Kirigami.Units.gridUnit * 32
+    implicitHeight: Kirigami.Units.gridUnit * 36
+    // The popup is sized from these when the representation sits in a layout.
     Layout.preferredWidth: implicitWidth
     Layout.preferredHeight: implicitHeight
-    Layout.minimumWidth: implicitWidth
-    Layout.minimumHeight: implicitHeight
+    Layout.minimumWidth: Kirigami.Units.gridUnit * 22
+    Layout.minimumHeight: Kirigami.Units.gridUnit * 20
 
-
-    // Backing for the text. The Plasma popup background is translucent (and a
-    // glassy theme makes it worse), which washes the lyrics out, so draw our
-    // own; the opacity is a setting so it can go back to glass.
+    // Our own backing: the Plasma popup background is translucent (and a glassy
+    // theme makes it worse), which washes the text out. The opacity is a setting.
     Rectangle {
         anchors.fill: parent
         color: Kirigami.Theme.backgroundColor
@@ -87,21 +70,59 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        NowPlaying {
+        NowPlaying { applet: full.applet; Layout.fillWidth: true }
+
+        InfoStrip {
             applet: full.applet
             Layout.fillWidth: true
+            Layout.fillHeight: false
+            Layout.leftMargin: Kirigami.Units.largeSpacing
+            Layout.rightMargin: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: Kirigami.Units.smallSpacing
         }
 
-        PlasmaComponents3.TabBar {
+        // Two tabs: Lyrics (when there are some) and the chart.
+        RowLayout {
             id: tabs
             Layout.fillWidth: true
-            Component.onCompleted: currentIndex = full.applet ? full.applet.defaultTabIndex : 0
+            Layout.leftMargin: Kirigami.Units.smallSpacing
+            spacing: 0
+            property int current: 1
 
-            PlasmaComponents3.TabButton {
-                text: i18n("Lyrics")
-                visible: full.lyricsAvailable
+            Repeater {
+                model: [
+                    { index: 0, text: i18n("Lyrics"), shown: full.lyricsAvailable },
+                    { index: 1, text: full.applet && full.applet.chartKind === "tab" ? i18n("Tab") : i18n("Chords"), shown: true }
+                ]
+                delegate: PlasmaComponents3.AbstractButton {
+                    id: tab
+                    required property var modelData
+                    visible: modelData.shown
+                    checked: tabs.current === modelData.index
+                    onClicked: tabs.current = modelData.index
+                    leftPadding: Kirigami.Units.largeSpacing
+                    rightPadding: Kirigami.Units.largeSpacing
+                    topPadding: Kirigami.Units.smallSpacing
+                    bottomPadding: Kirigami.Units.smallSpacing
+                    Accessible.role: Accessible.PageTab
+                    contentItem: PlasmaComponents3.Label {
+                        text: tab.modelData.text
+                        font.weight: tab.checked ? Font.DemiBold : Font.Normal
+                        opacity: tab.checked ? 1 : 0.65
+                    }
+                    background: Rectangle {
+                        color: tab.hovered ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06) : "transparent"
+                        Rectangle {
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: 2
+                            color: Kirigami.Theme.highlightColor
+                            visible: tab.checked
+                        }
+                    }
+                }
             }
-            PlasmaComponents3.TabButton { text: i18n("Chords") }
+            Item { Layout.fillWidth: true }
         }
 
         Rectangle {
@@ -110,213 +131,33 @@ Item {
             color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.12)
         }
 
-        RowLayout {
+        Stage {
+            applet: full.applet
+            active: tabs.current === 1
             Layout.fillWidth: true
-            Layout.leftMargin: Kirigami.Units.smallSpacing
-            Layout.rightMargin: Kirigami.Units.smallSpacing
-            Layout.topMargin: Kirigami.Units.smallSpacing
-            Layout.bottomMargin: Kirigami.Units.smallSpacing
-            spacing: Kirigami.Units.smallSpacing
-            visible: full.applet ? full.applet.ready : false
-
-            // Transposing and capo mean nothing without a chart, so they come
-            // and go with one.
-            RowLayout {
-                visible: full.hasChart
-                spacing: Kirigami.Units.smallSpacing
-
-                PlasmaComponents3.ToolButton {
-                    text: "\u2212"
-                    onClicked: if (full.applet) full.applet.transpose = full.applet.transpose - 1
-                }
-                PlasmaComponents3.Label {
-                    text: {
-                        if (!full.applet || full.applet.transpose === 0) return i18n("No transpose")
-                        return full.applet.transpose > 0 ? "+" + full.applet.transpose : String(full.applet.transpose)
-                    }
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.minimumWidth: full.applet && full.applet.transpose !== 0
-                        ? Kirigami.Units.gridUnit * 5 : Kirigami.Units.gridUnit * 2
-                    font.pointSize: Kirigami.Theme.smallFont.pointSize
-                }
-                PlasmaComponents3.ToolButton {
-                    text: "+"
-                    onClicked: if (full.applet) full.applet.transpose = full.applet.transpose + 1
-                }
-
-                Item { Layout.preferredWidth: Kirigami.Units.smallSpacing }
-
-                PlasmaComponents3.Label {
-                    text: i18n("Capo")
-                    font.pointSize: Kirigami.Theme.smallFont.pointSize
-                }
-                PlasmaComponents3.ComboBox {
-                    model: ["0", "1", "2", "3", "4", "5", "6", "7"]
-                    currentIndex: full.applet ? full.applet.capo : 0
-                    onActivated: if (full.applet) full.applet.capo = index
-                }
-
-                Item { Layout.preferredWidth: Kirigami.Units.smallSpacing }
-
-                // Text size and the diagram strip: what Ultimate Guitar keeps on
-                // the toolbar of every tab. They sit beside transpose and capo
-                // because all four only mean something to a chord chart.
-                PlasmaComponents3.ToolButton {
-                    text: "A\u2212"
-                    onClicked: if (full.applet) full.applet.adjustFontSize(-1)
-                    PlasmaComponents3.ToolTip {
-                        text: i18n("Smaller chord text")
-                    }
-                }
-                PlasmaComponents3.ToolButton {
-                    text: "A+"
-                    onClicked: if (full.applet) full.applet.adjustFontSize(1)
-                    PlasmaComponents3.ToolTip {
-                        text: i18n("Larger chord text")
-                    }
-                }
-                PlasmaComponents3.ToolButton {
-                    icon.name: "view-grid"
-                    checkable: true
-                    checked: full.applet ? full.applet.showChordDiagrams : true
-                    onClicked: if (full.applet) full.applet.toggleChordDiagrams()
-                    PlasmaComponents3.ToolTip {
-                        text: i18n("Show the fingerings for this song's chords")
-                    }
-                }
-                // The last two controls UG puts on a tab: an easy-chord switch
-                // and the pace of the auto-scroll.
-                PlasmaComponents3.ToolButton {
-                    text: i18n("Easy")
-                    checkable: true
-                    checked: full.applet ? full.applet.simplifyChords : false
-                    onClicked: if (full.applet) full.applet.toggleSimplifyChords()
-                    PlasmaComponents3.ToolTip {
-                        text: i18n("Simplify every chord to an easy shape")
-                    }
-                }
-                PlasmaComponents3.Slider {
-                    Layout.preferredWidth: Kirigami.Units.gridUnit * 5
-                    visible: full.applet ? full.applet.autoScroll : true
-                    from: 1
-                    to: 10
-                    stepSize: 1
-                    value: full.applet ? full.applet.scrollSpeed : 5
-                    onMoved: if (full.applet) full.applet.setScrollSpeed(value)
-                    PlasmaComponents3.ToolTip {
-                        text: i18n("Auto-scroll speed")
-                    }
-                }
-            }
-
-            Item { Layout.fillWidth: true }
-
-            PlasmaComponents3.Label {
-                text: full.sourceLabel
-                opacity: 0.5
-                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                elide: Text.ElideRight
-            }
-            PlasmaComponents3.ToolButton {
-                icon.name: "edit-find"
-                onClicked: if (full.applet) full.applet.openVersions()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Wrong version? Pick another")
-                }
-            }
-            PlasmaComponents3.ToolButton {
-                icon.name: "view-refresh"
-                onClicked: if (full.applet) full.applet.fetchSong()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Ask again")
-                }
-            }
-            PlasmaComponents3.ToolButton {
-                text: "\u0905\u2192A"
-                checkable: true
-                checked: full.applet ? full.applet.lyricsRomanised : false
-                onClicked: if (full.applet) full.applet.toggleRomanise()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Switch the lyrics between their own script and a romanised reading")
-                }
-            }
-            PlasmaComponents3.ToolButton {
-                icon.name: "view-media-lyrics"
-                checkable: true
-                checked: full.applet ? full.applet.lyricSync : true
-                onClicked: if (full.applet) full.applet.toggleLyricSync()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Follow the song and highlight the line being sung")
-                }
-            }
-            PlasmaComponents3.ToolButton {
-                icon.name: "arrow-down"
-                checkable: true
-                checked: full.applet ? full.applet.autoScroll : true
-                onClicked: if (full.applet) full.applet.toggleAutoScroll()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Scroll the view to keep up with the song")
-                }
-            }
-            PlasmaComponents3.ToolButton {
-                icon.name: "go-top"
-                onClicked: {
-                    var view = tabs.currentIndex === 0 ? lyricsView : chordsView
-                    if (view && view.scrollToTop) view.scrollToTop()
-                }
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Jump back to the top of the song")
-                }
-            }
-            PlasmaComponents3.ToolButton {
-                icon.name: "window-new"
-                onClicked: if (full.applet) full.applet.toggleWindow()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Open in a window of its own, above other windows")
-                }
-            }
+            Layout.fillHeight: false
+            Layout.preferredHeight: visible ? implicitHeight : 0
         }
 
-        // Lyrics timing gets its own line: the timings a database hands back
-        // drift by a second or two between releases. Nudge them, or press the
-        // circular arrow to pull the nearest line onto what is playing now.
-        RowLayout {
+        SectionBar {
+            applet: full.applet
+            active: tabs.current === 1
             Layout.fillWidth: true
+            Layout.fillHeight: false
             Layout.leftMargin: Kirigami.Units.smallSpacing
             Layout.rightMargin: Kirigami.Units.smallSpacing
             Layout.topMargin: Kirigami.Units.smallSpacing
-            spacing: Kirigami.Units.smallSpacing
-            visible: !!(full.applet && full.applet.ready && full.applet.lyrics
-                && tabs.currentIndex === 0)
+        }
 
-            PlasmaComponents3.Label {
-                text: i18n("Lyrics timing")
-                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                opacity: 0.5
-            }
-            PlasmaComponents3.ToolButton {
-                text: "\u22120.5"
-                onClicked: if (full.applet) full.applet.nudgeOffset(-0.5)
-            }
-            PlasmaComponents3.Label {
-                text: full.applet ? full.applet.offsetLabel : ""
-                horizontalAlignment: Text.AlignHCenter
-                Layout.preferredWidth: Kirigami.Units.gridUnit * 3
-                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                opacity: 0.7
-            }
-            PlasmaComponents3.ToolButton {
-                text: "+0.5"
-                onClicked: if (full.applet) full.applet.nudgeOffset(0.5)
-            }
-            PlasmaComponents3.ToolButton {
-                text: "\u21bb"
-                onClicked: if (full.applet) full.applet.syncOffset()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Line the lyrics up with what is playing now")
-                }
-            }
-            Item { Layout.fillWidth: true }
+        Toolbar {
+            applet: full.applet
+            view: full.activeView
+            lyricsTab: tabs.current === 0
+            // A nested layout would otherwise soak up the height the song view needs.
+            Layout.fillHeight: false
+            Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.smallSpacing / 2
+            Layout.bottomMargin: Kirigami.Units.smallSpacing / 2
         }
 
         Item {
@@ -324,24 +165,20 @@ Item {
             Layout.fillHeight: true
 
             StackLayout {
-                id: stack
                 anchors.fill: parent
-                currentIndex: tabs.currentIndex
+                currentIndex: tabs.current
 
                 LyricsView {
                     id: lyricsView
                     applet: full.applet
                     follow: full.applet ? full.applet.lyricSync : true
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
                 }
                 ChordsView {
                     id: chordsView
                     applet: full.applet
-                    follow: full.applet ? full.applet.lyricSync : true
+                    // A tab has no timings to follow; the reading scroll handles it.
+                    follow: !!full.applet && full.applet.lyricSync && full.applet.chartKind !== "tab"
                     showDiagrams: full.applet ? full.applet.showChordDiagrams : true
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
                 }
             }
 
@@ -352,59 +189,37 @@ Item {
             }
         }
 
-        PlasmaComponents3.Label {
+        RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: Kirigami.Units.smallSpacing
-            Layout.rightMargin: Kirigami.Units.smallSpacing
+            Layout.leftMargin: Kirigami.Units.largeSpacing
+            Layout.rightMargin: Kirigami.Units.largeSpacing
             Layout.bottomMargin: Kirigami.Units.smallSpacing
-            visible: full.message.length > 0
-            text: full.message
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WordWrap
-            opacity: 0.6
-            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            visible: full.message.length > 0 || full.sourceLabel.length > 0
+            PlasmaComponents3.Label {
+                Layout.fillWidth: true
+                text: full.message.length > 0 ? full.message : full.sourceLabel
+                opacity: 0.55
+                elide: Text.ElideRight
+                font.pointSize: Kirigami.Theme.smallFont.pointSize
+            }
+            PlasmaComponents3.Label {
+                visible: !!(full.applet && full.applet.loading)
+                text: i18n("Looking…")
+                opacity: 0.55
+                font.pointSize: Kirigami.Theme.smallFont.pointSize
+            }
         }
     }
 
     // Keyboard control. Shortcuts are window-scoped, so the same keys work in
     // the panel popup and in the floating window.
-    Shortcut {
-        sequence: "Space"
-        enabled: !full.typing
-        onActivated: if (full.applet) full.applet.togglePlay()
-    }
-    Shortcut {
-        sequence: "Left"
-        enabled: !full.typing
-        onActivated: if (full.applet) full.applet.seekTo(full.applet.positionSec - 5)
-    }
-    Shortcut {
-        sequence: "Right"
-        enabled: !full.typing
-        onActivated: if (full.applet) full.applet.seekTo(full.applet.positionSec + 5)
-    }
-    Shortcut {
-        sequence: "Up"
-        enabled: !full.typing
-        onActivated: full.nudgeView(-1)
-    }
-    Shortcut {
-        sequence: "Down"
-        enabled: !full.typing
-        onActivated: full.nudgeView(1)
-    }
-    Shortcut {
-        sequence: "["
-        enabled: !full.typing && full.hasChart
-        onActivated: if (full.applet) full.applet.transpose = full.applet.transpose - 1
-    }
-    Shortcut {
-        sequence: "]"
-        enabled: !full.typing && full.hasChart
-        onActivated: if (full.applet) full.applet.transpose = full.applet.transpose + 1
-    }
-    Shortcut {
-        sequence: "Esc"
-        onActivated: if (full.applet) full.applet.closeSelf()
-    }
+    Shortcut { sequence: "Space"; enabled: !full.typing; onActivated: if (full.applet) full.applet.togglePlay() }
+    Shortcut { sequence: "Left"; enabled: !full.typing; onActivated: if (full.applet) full.applet.seekTo(full.applet.positionSec - 5) }
+    Shortcut { sequence: "Right"; enabled: !full.typing; onActivated: if (full.applet) full.applet.seekTo(full.applet.positionSec + 5) }
+    Shortcut { sequence: "Up"; enabled: !full.typing; onActivated: full.activeView.nudge(-Kirigami.Units.gridUnit * 3) }
+    Shortcut { sequence: "Down"; enabled: !full.typing; onActivated: full.activeView.nudge(Kirigami.Units.gridUnit * 3) }
+    Shortcut { sequence: "["; enabled: !full.typing && full.hasChart; onActivated: full.applet.transpose = full.applet.transpose - 1 }
+    Shortcut { sequence: "]"; enabled: !full.typing && full.hasChart; onActivated: full.applet.transpose = full.applet.transpose + 1 }
+    Shortcut { sequence: "L"; enabled: !full.typing && full.hasChart; onActivated: full.applet.toggleLoopHere() }
+    Shortcut { sequence: "Esc"; onActivated: if (full.applet) full.applet.closeRequested() }
 }

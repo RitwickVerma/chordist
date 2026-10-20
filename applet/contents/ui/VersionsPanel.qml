@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as QQC
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents3
@@ -76,20 +77,34 @@ Item {
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
             }
-            PlasmaComponents3.ToolButton {
+            ToolbarButton {
                 visible: !!(panel.applet && (panel.applet.pinnedLyricsId || panel.applet.pinnedChordUrl))
                 icon.name: "edit-delete"
+                tip: i18n("Go back to picking automatically")
                 onClicked: if (panel.applet) panel.applet.clearPins()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Go back to picking automatically")
-                }
             }
-            PlasmaComponents3.ToolButton {
+            ToolbarButton {
                 icon.name: "dialog-close"
+                tip: i18n("Close")
                 onClicked: if (panel.applet) panel.applet.closeVersions()
-                PlasmaComponents3.ToolTip {
-                    text: i18n("Close")
-                }
+            }
+        }
+
+        // A tab found by hand: paste its Ultimate Guitar address.
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Kirigami.Units.smallSpacing
+            QQC.TextField {
+                id: address
+                Layout.fillWidth: true
+                placeholderText: i18n("Or paste an Ultimate Guitar tab address\u2026")
+                selectByMouse: true
+                onAccepted: if (panel.applet && panel.applet.pinChartUrl(text)) text = ""
+            }
+            PlasmaComponents3.Button {
+                text: i18n("Use")
+                enabled: /^https:\/\/([a-z0-9-]+\.)?ultimate-guitar\.com\/\S+$/i.test(address.text.trim())
+                onClicked: if (panel.applet && panel.applet.pinChartUrl(address.text)) address.text = ""
             }
         }
 

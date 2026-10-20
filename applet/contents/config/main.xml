@@ -19,6 +19,18 @@
         <entry name="showChordDiagrams" type="Bool">
             <default>true</default>
         </entry>
+        <entry name="showStage" type="Bool">
+            <label>Show the chord you are on, and the next one, large</label>
+            <default>true</default>
+        </entry>
+        <entry name="showFingerNumbers" type="Bool">
+            <label>Number the fingers on the big chord diagram</label>
+            <default>true</default>
+        </entry>
+        <entry name="leftHanded" type="Bool">
+            <label>Mirror chord diagrams for a left-handed player</label>
+            <default>false</default>
+        </entry>
         <entry name="simplifyChords" type="Bool">
             <label>Simplify every chord to an easy shape</label>
             <default>false</default>

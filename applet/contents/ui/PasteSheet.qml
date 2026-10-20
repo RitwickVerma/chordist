@@ -9,7 +9,7 @@ ColumnLayout {
     id: sheet
 
     property var applet
-    property string hint: i18n("Paste a chord sheet or lyrics. Plain text, ChordPro and Ultimate Guitar formats all work.")
+    property string hint: i18n("Paste a chord sheet or lyrics, or the address of an Ultimate Guitar tab. Plain text, ChordPro and Ultimate Guitar formats all work.")
 
     spacing: Kirigami.Units.smallSpacing
 
@@ -25,7 +25,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumHeight: Kirigami.Units.gridUnit * 5
-        placeholderText: "Am        F\nWhen you were here before\nC         G\nand I wish I was special"
+        placeholderText: "Am        F\nWhen you were here before\nC         G\nand I wish I was special\n\n(or an Ultimate Guitar address)"
         wrapMode: QQC.TextArea.Wrap
         selectByMouse: true
         font: Kirigami.Theme.fixedWidthFont
@@ -50,7 +50,7 @@ ColumnLayout {
             }
         }
         PlasmaComponents3.Button {
-            text: i18n("Save for this track")
+            text: /^https?:\/\/\S+$/.test(input.text.trim()) ? i18n("Use this tab") : i18n("Save for this track")
             icon.name: "document-save"
             enabled: input.text.trim().length > 0
             onClicked: {

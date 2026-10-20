@@ -1,26 +1,29 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents3
 import "../js/util.js" as Util
 
+// What is playing, the transport, practice speed and a seekable progress bar.
 Item {
     id: header
+
     property var applet
-    property var accentColor: Kirigami.Theme.highlightColor
+    property color accentColor: Kirigami.Theme.highlightColor
 
     readonly property real ratio: applet && applet.lengthSec > 0
-        ? Math.max(0, Math.min(1, applet.positionSec / applet.lengthSec))
-        : 0
+        ? Math.max(0, Math.min(1, applet.positionSec / applet.lengthSec)) : 0
+    readonly property bool hasPlayer: !!(applet && applet.player)
 
-    implicitHeight: layout.implicitHeight + Kirigami.Units.largeSpacing * 2
+    implicitHeight: layout.implicitHeight + Kirigami.Units.smallSpacing * 2
 
     ColumnLayout {
         id: layout
         anchors.fill: parent
-        anchors.margins: Kirigami.Units.largeSpacing
-        spacing: Kirigami.Units.smallSpacing
+        anchors.margins: Kirigami.Units.smallSpacing
+        anchors.leftMargin: Kirigami.Units.largeSpacing
+        anchors.rightMargin: Kirigami.Units.largeSpacing
+        spacing: 0
 
         RowLayout {
             Layout.fillWidth: true
@@ -46,8 +49,8 @@ Item {
                 PlasmaComponents3.Label {
                     anchors.centerIn: parent
                     visible: !art.visible
-                    text: "\u266b"
-                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 2
+                    text: "♫"
+                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.6
                     opacity: 0.5
                 }
             }
@@ -66,45 +69,59 @@ Item {
                 PlasmaComponents3.Label {
                     Layout.fillWidth: true
                     visible: text.length > 0
-                    text: header.applet ? header.applet.artist : ""
-                    opacity: 0.75
+                    opacity: 0.7
                     elide: Text.ElideRight
                     maximumLineCount: 1
-                }
-                PlasmaComponents3.Label {
-                    Layout.fillWidth: true
-                    visible: text.length > 0
-                    opacity: 0.5
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
                     text: {
                         if (!header.applet) return ""
                         var parts = []
+                        if (header.applet.artist) parts.push(header.applet.artist)
                         if (header.applet.album) parts.push(header.applet.album)
-                        if (header.applet.identity) parts.push(header.applet.identity)
-                        return parts.join("  \u00b7  ")
+                        return parts.join("  ·  ")
                     }
                 }
             }
-        }
 
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: Kirigami.Units.largeSpacing
+            // Practice speed: only offered when the player allows it.
+            ToolbarButton {
+                visible: !!(header.applet && header.applet.canChangeRate)
+                text: header.applet ? Number(header.applet.playbackRate.toFixed(2)) + "×" : ""
+                tip: i18n("Playback speed, for slowing a passage down to learn it")
+                onClicked: speedMenu.open()
 
-            PlasmaComponents3.ToolButton {
+                PlasmaComponents3.Menu {
+                    id: speedMenu
+                    y: parent.height
+                    Repeater {
+                        model: [0.5, 0.75, 0.9, 1.0, 1.1, 1.25]
+                        delegate: PlasmaComponents3.MenuItem {
+                            required property real modelData
+                            text: modelData + "×"
+                            checkable: true
+                            checked: header.applet && Math.abs(header.applet.playbackRate - modelData) < 0.01
+                            onTriggered: header.applet.setRate(modelData)
+                        }
+                    }
+                }
+            }
+
+            ToolbarButton {
                 icon.name: "media-skip-backward"
-                enabled: header.applet && header.applet.player && header.applet.player.canGoPrevious
+                tip: i18n("Previous track")
+                enabled: header.hasPlayer && header.applet.player.canGoPrevious
                 onClicked: header.applet.previousTrack()
             }
-            PlasmaComponents3.ToolButton {
+            ToolbarButton {
                 icon.name: header.applet && header.applet.playing ? "media-playback-pause" : "media-playback-start"
-                enabled: header.applet && header.applet.player && header.applet.player.canPlay
+                tip: header.applet && header.applet.playing ? i18n("Pause") : i18n("Play")
+                enabled: header.hasPlayer && header.applet.player.canPlay
                 onClicked: header.applet.togglePlay()
             }
-            PlasmaComponents3.ToolButton {
+            ToolbarButton {
                 icon.name: "media-skip-forward"
-                enabled: header.applet && header.applet.player && header.applet.player.canGoNext
+                tip: i18n("Next track")
+                enabled: header.hasPlayer && header.applet.player.canGoNext
                 onClicked: header.applet.nextTrack()
             }
         }
@@ -122,7 +139,7 @@ Item {
             Item {
                 id: track
                 Layout.fillWidth: true
-                implicitHeight: Math.max(6, Kirigami.Units.smallSpacing)
+                implicitHeight: Kirigami.Units.gridUnit
 
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
@@ -131,6 +148,17 @@ Item {
                     radius: 2
                     color: Kirigami.Theme.textColor
                     opacity: 0.15
+                }
+                // The section being looped, so the practice loop is visible on the bar.
+                Rectangle {
+                    visible: !!(header.applet && header.applet.loopSpan && header.applet.lengthSec > 0)
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: visible ? parent.width * header.applet.loopSpan.start / header.applet.lengthSec : 0
+                    width: visible ? parent.width * (header.applet.loopSpan.end - header.applet.loopSpan.start) / header.applet.lengthSec : 0
+                    height: 8
+                    radius: 2
+                    color: header.accentColor
+                    opacity: 0.3
                 }
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter

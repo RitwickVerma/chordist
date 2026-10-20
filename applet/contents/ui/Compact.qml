@@ -6,6 +6,8 @@ import org.kde.plasma.components as PlasmaComponents3
 Item {
     id: compact
     property var applet
+    // The PlasmoidItem, which owns the popup's expanded state.
+    property var host
 
     readonly property var player: applet ? applet.player : null
 
@@ -13,13 +15,15 @@ Item {
     //           another media widget such as the PlasMusic toolbar)
     // "title" - art/icon plus the song title
     // "full"  - art/icon plus title and artist
+    // "chord"  - icon plus the chord you should be playing right now
     readonly property string mode: plasmoid.configuration.compactMode
-    readonly property bool showArt: mode !== "icon"
+    readonly property bool showArt: mode !== "icon" && mode !== "chord"
     readonly property bool showText: mode !== "icon"
     readonly property bool showArtist: mode === "full"
 
     readonly property string label: {
         if (!applet || !applet.ready) return "Chordist"
+        if (mode === "chord") return applet.nowChord || applet.nextChord || "\u266a"
         if (showArtist && applet.artist)
             return applet.track ? applet.track + "  \u2014  " + applet.artist : applet.artist
         return applet.track || applet.artist || "Chordist"
@@ -77,7 +81,7 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
         onClicked: function (mouse) {
             if (mouse.button === Qt.MiddleButton) {
-                var action = plasmoid.configuration.middleClickAction
+                const action = plasmoid.configuration.middleClickAction
                 if (!compact.player) return
                 if (action === "next") compact.player.Next()
                 else if (action === "previous") compact.player.Previous()
@@ -85,16 +89,13 @@ Item {
                 return
             }
             if (plasmoid.configuration.openAsWindow) {
-                if (compact.applet) compact.applet.toggleWindow()
+                if (compact.applet) compact.applet.windowRequested()
                 return
             }
-            // Left click opens/closes the popup. This MouseArea accepts the
-            // press, so Plasma's own handler never sees it - we must toggle
-            // expanded ourselves, on the PlasmoidItem (compact.applet), which
-            // is what the shell's CompactApplet actually watches.
-            var item = (compact.applet !== undefined && compact.applet !== null)
-                ? compact.applet : plasmoid
-            item.expanded = !item.expanded
+            // Left click opens/closes the popup. This MouseArea accepts the press,
+            // so Plasma's own handler never sees it: toggle `expanded` ourselves,
+            // on the PlasmoidItem, which is what the shell's CompactApplet watches.
+            if (compact.host) compact.host.expanded = !compact.host.expanded
         }
     }
 
@@ -159,13 +160,14 @@ Item {
             id: title
             visible: compact.showText
             Layout.alignment: Qt.AlignVCenter
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+            Layout.maximumWidth: compact.mode === "chord" ? Kirigami.Units.gridUnit * 5 : Kirigami.Units.gridUnit * 14
             text: compact.label
             scrolling: plasmoid.configuration.compactScroll
             // Build a fresh font: a QML font is a value type, so mutating a copy
             // of the theme font never reached the Text.
             font: Qt.font({
                 family: Kirigami.Theme.defaultFont.family,
+                weight: compact.mode === "chord" ? Font.Bold : Font.Normal,
                 pointSize: Math.max(1, Kirigami.Theme.defaultFont.pointSize + plasmoid.configuration.fontSizeOffset)
             })
             color: Kirigami.Theme.textColor
