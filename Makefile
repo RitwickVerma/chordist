@@ -19,6 +19,9 @@ QML_FILES  := $(wildcard applet/contents/ui/*.qml applet/contents/ui/config/*.qm
 JS_FILES   := $(wildcard applet/contents/js/*.js)
 
 .DEFAULT_GOAL := help
+# install is a sequence (migrate the data, then start the service on it), and a
+# MAKEFLAGS=-j in someone's environment must not turn it into a race.
+.NOTPARALLEL:
 .PHONY: help deps install install-service install-applet migrate migrate-panel uninstall doctor status \
         lint lint-reuse lint-python lint-qml lint-shell lint-deadcode \
         test test-python test-js test-qml shots chords-db clean
@@ -63,7 +66,7 @@ install-service: ## Install the service, launcher and systemd unit, and (re)star
 	$(SYSTEMCTL) restart chordistd.service
 
 install-applet: ## Install or upgrade the Plasma widget
-	$(KPT) -t Plasma/Applet -u applet 2>/dev/null || $(KPT) -t Plasma/Applet -i applet
+	$(KPT) -t Plasma/Applet -u applet >/dev/null 2>&1 || $(KPT) -t Plasma/Applet -i applet
 
 uninstall: ## Remove the widget, service and unit (your charts and settings stay)
 	-$(SYSTEMCTL) disable --now chordistd.service

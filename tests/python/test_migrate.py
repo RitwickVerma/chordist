@@ -129,3 +129,28 @@ def test_a_panel_without_the_old_widget_is_left_alone(home):
     assert rc.read_text() == "[Containments][1][Applets][2]\nplugin=org.kde.plasma.digitalclock\n"
     assert "nothing to migrate" in out
     assert not list(home.glob(".config/*.bak-chordist-*"))
+
+
+def test_install_moves_the_data_before_the_service_starts_even_under_make_j(home):
+    """With -j, make would run the steps at once and start the service on empty defaults."""
+    spy = home / "systemctl-spy"
+    spy.write_text(
+        "#!/bin/sh\n"
+        'case "$*" in\n'
+        '  *disable*) sleep 1 ;;\n'          # stopping the old service takes a moment
+        '  *restart*) if [ -f "$HOME/.config/chordist/config.json" ]; then echo ready; else echo EMPTY; fi'
+        ' > "$HOME/at-restart" ;;\n'
+        "esac\n"
+    )
+    spy.chmod(0o755)
+    env = {
+        "HOME": str(home), "PATH": os.environ["PATH"], "XDG_CONFIG_HOME": str(home / ".config"),
+        "XDG_DATA_HOME": str(home / ".local/share"), "XDG_CACHE_HOME": str(home / ".cache"),
+    }
+    repo = SCRIPT.parents[1]
+    subprocess.run(
+        ["make", "-j8", "install", f"PREFIX={home}/.local", f"UNIT_DIR={home}/.config/systemd/user",
+         f"SYSTEMCTL={spy}", "KPT=true"],
+        cwd=repo, env=env, capture_output=True, text=True, check=True,
+    )
+    assert (home / "at-restart").read_text().strip() == "ready"
