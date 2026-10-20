@@ -7,11 +7,13 @@ APPLET_ID  := com.ritwick.chordist
 PREFIX     ?= $(HOME)/.local
 BIN_DIR    := $(PREFIX)/bin
 LIB_DIR    := $(PREFIX)/lib/chordist
+ICON_DIR   := $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/icons/hicolor/scalable/apps
 UNIT_DIR   ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/systemd/user
 STATE_DIRS := $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/chordist $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/chordist
 KPT        := kpackagetool6
 SYSTEMCTL  ?= systemctl --user
 QT_BIN     := /usr/lib/qt6/bin
+VERSION    := $(shell cat VERSION)
 QMLLINT    := $(QT_BIN)/qmllint
 QMLTEST    := $(QT_BIN)/qmltestrunner
 UV         := uv
@@ -24,7 +26,7 @@ JS_FILES   := $(wildcard applet/contents/js/*.js)
 .NOTPARALLEL:
 .PHONY: help deps install install-service install-applet migrate migrate-panel uninstall doctor status \
         lint lint-reuse lint-python lint-qml lint-shell lint-deadcode \
-        test test-python test-js test-qml coverage shots chords-db clean
+        test test-python test-js test-qml coverage shots demo chords-db dist pkgbuild check-build clean
 
 help: ## Show this help
 	@echo "Chordist"
@@ -61,6 +63,8 @@ install-service: ## Install the service, launcher and systemd unit, and (re)star
 	find $(LIB_DIR) -name __pycache__ -prune -exec rm -rf {} +
 	install -m 755 bin/chordistd $(BIN_DIR)/chordistd
 	install -m 644 packaging/chordistd.service $(UNIT_DIR)/chordistd.service
+	ln -sf chordistd $(BIN_DIR)/chordist
+	install -Dm644 packaging/chordist.svg $(ICON_DIR)/chordist.svg
 	$(SYSTEMCTL) daemon-reload
 	$(SYSTEMCTL) enable chordistd.service
 	$(SYSTEMCTL) restart chordistd.service
@@ -71,7 +75,7 @@ install-applet: ## Install or upgrade the Plasma widget
 uninstall: ## Remove the widget, service and unit (your charts and settings stay)
 	-$(SYSTEMCTL) disable --now chordistd.service
 	-$(KPT) -t Plasma/Applet -r $(APPLET_ID)
-	rm -rf $(LIB_DIR) $(BIN_DIR)/chordistd $(UNIT_DIR)/chordistd.service
+	rm -rf $(LIB_DIR) $(BIN_DIR)/chordistd $(BIN_DIR)/chordist $(ICON_DIR)/chordist.svg $(UNIT_DIR)/chordistd.service
 	-$(SYSTEMCTL) daemon-reload
 
 doctor: ## Check the running service and its tools
@@ -117,6 +121,24 @@ test-qml: ## qmltestrunner: the song model's logic
 
 shots: ## Render the widget headless against a fixture service (build/shots)
 	tests/qml/run.sh build/shots
+
+dist: ## Source tarball of the committed tree (dist/chordist-VERSION.tar.gz)
+	@mkdir -p dist
+	git archive --format=tar.gz --prefix=chordist-$(VERSION)/ -o dist/chordist-$(VERSION).tar.gz HEAD
+	@echo dist/chordist-$(VERSION).tar.gz
+
+pkgbuild: dist ## Stage the Arch PKGBUILD and tarball in build/pkg (then: cd build/pkg && makepkg -si)
+	@mkdir -p build/pkg
+	cp packaging/PKGBUILD build/pkg/PKGBUILD
+	cp dist/chordist-$(VERSION).tar.gz build/pkg/
+
+check-build: ## Build the wheel and check the chord database and entry point are in it
+	rm -rf dist/*.whl
+	$(UV) build --wheel
+	python3 tools/check-wheel.py dist/chordist-$(VERSION)-py3-none-any.whl
+
+demo: ## Render the animated demo (docs/images/demo.gif; needs ffmpeg)
+	tests/qml/demo.sh docs/images/demo.gif
 
 chords-db: ## Refresh the vendored chords-db fingering data (needs npm)
 	tools/update-chords-db.py

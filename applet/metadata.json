@@ -3,12 +3,13 @@
     "KPlugin": {
         "Authors": [
             {
-                "Name": "ritwick"
+                "Name": "Ritwick Verma",
+                "Email": "verma1997@gmail.com"
             }
         ],
         "Category": "Multimedia",
         "Description": "Guitar companion: live chords, tabs, lyrics, fingerings and a capo helper for whatever you are playing",
-        "Icon": "view-media-lyrics",
+        "Icon": "chordist",
         "Id": "com.ritwick.chordist",
         "License": "MIT",
         "Name": "Chordist",

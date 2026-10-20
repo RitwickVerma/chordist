@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>Chordist</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3daee9"/>
+      <stop offset="1" stop-color="#1b6fa8"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="url(#bg)"/>
+  <!-- a chord box: six strings, four frets, the nut on top -->
+  <g stroke="#ffffff" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.92">
+    <line x1="34" y1="44" x2="34" y2="102"/>
+    <line x1="45.2" y1="44" x2="45.2" y2="102"/>
+    <line x1="56.4" y1="44" x2="56.4" y2="102"/>
+    <line x1="67.6" y1="44" x2="67.6" y2="102"/>
+    <line x1="78.8" y1="44" x2="78.8" y2="102"/>
+    <line x1="90" y1="44" x2="90" y2="102"/>
+    <line x1="34" y1="58.5" x2="90" y2="58.5"/>
+    <line x1="34" y1="73" x2="90" y2="73"/>
+    <line x1="34" y1="87.5" x2="90" y2="87.5"/>
+    <line x1="34" y1="102" x2="90" y2="102"/>
+  </g>
+  <line x1="32.5" y1="44" x2="91.5" y2="44" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+  <!-- an open G: low E, A and B fretted; the rest open or muted -->
+  <g fill="#ffffff">
+    <circle cx="34" cy="80.2" r="5.6"/>
+    <circle cx="45.2" cy="65.7" r="5.6"/>
+    <circle cx="90" cy="80.2" r="5.6"/>
+  </g>
+  <g stroke="#ffffff" stroke-width="2.6" fill="none" opacity="0.92">
+    <circle cx="56.4" cy="30" r="4.2"/>
+    <circle cx="67.6" cy="30" r="4.2"/>
+    <circle cx="78.8" cy="30" r="4.2"/>
+  </g>
+</svg>
