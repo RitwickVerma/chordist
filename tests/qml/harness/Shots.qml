@@ -102,6 +102,12 @@ Window {
     }
 
     function arrange() {
+        // A render of an empty "offline" popup is worse than no render: say so.
+        if (scenario !== "empty" && !(model.song && model.song.chords)) {
+            console.log("FAIL the song did not load: " + model.statusMessage)
+            Qt.exit(3)
+            return
+        }
         if (scenario === "empty") {
             var col = full.children[1]
             for (var k = 0; k < col.children.length; k++) {

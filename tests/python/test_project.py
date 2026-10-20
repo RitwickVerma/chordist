@@ -17,3 +17,8 @@ def test_one_version_everywhere():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
     applet = json.loads((ROOT / "applet" / "metadata.json").read_text())["KPlugin"]["Version"]
     assert chordist.__version__ == pyproject == applet == (ROOT / "VERSION").read_text().strip()
+
+
+def test_the_arch_package_builds_the_same_version():
+    pkgbuild = (ROOT / "packaging" / "PKGBUILD").read_text()
+    assert f"\npkgver={chordist.__version__}\n" in pkgbuild

@@ -20,7 +20,7 @@ source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 package() {
-  cd "$srcdir/$pkgname-$pkgver"
+  cd "$srcdir/$pkgname-$pkgver" || exit 1
 
   # The service. The launcher finds the package at <prefix>/lib/chordist.
   install -d "$pkgdir/usr/lib/chordist"

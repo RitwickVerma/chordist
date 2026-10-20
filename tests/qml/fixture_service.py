@@ -69,7 +69,7 @@ def main() -> None:
         }
     )
 
-    def lookup(self, artist, title, album="", duration=0.0, lyrics_id=None):
+    def lookup(self, artist, title, album="", duration=0.0, lyrics_id=None, refresh=False):
         if "grace" in title.lower():
             lines = [{"t": t, "text": text, "words": []} for t, text in GRACE_LYRICS]
             return {"source": "lrclib", "synced": True, "lines": lines, "plain": "", "track": title,

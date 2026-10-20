@@ -7,7 +7,8 @@
 #
 #   tests/qml/run.sh [OUT] [scenario ...]
 #
-# Scenarios: chords ug lefty tab lyrics versions empty
+# Scenarios: chords ug lefty tab lyrics versions empty. `name@12` renders that scenario with
+# the song 12 seconds in, to out/name-t12.png (for the demo animation).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -20,6 +21,7 @@ work="$(mktemp -d)"
 trap 'kill "${svc:-0}" 2>/dev/null || true; rm -rf "$work"' EXIT
 
 mkdir -p "$out"
+failed=0
 
 # The widget uses KDE's i18n(), which only the Plasma shell provides; swap in a
 # shim that substitutes %1... so every string still renders.
@@ -35,11 +37,24 @@ svc=$!
 for _ in $(seq 1 50); do grep -q '^ready' "$work/service.log" && break; sleep 0.1; done
 grep -q '^ready' "$work/service.log" || { cat "$work/service.log"; exit 1; }
 
-for name in "${scenarios[@]}"; do
+for spec in "${scenarios[@]}"; do
+    name="${spec%@*}"
+    label="$name"
     at=9
     [[ $name == tab ]] && at=3
-    QT_QUICK_CONTROLS_STYLE="${QT_QUICK_CONTROLS_STYLE:-org.kde.desktop}" QT_QPA_PLATFORM=offscreen timeout 60 qml6 "$work/Shots.qml" -- "$name" "$out/$name.png" "$port" "$at" \
-        >"$work/$name.log" 2>&1 || true
-    if [[ -s "$out/$name.png" ]]; then echo "ok    $name"; else echo "FAIL  $name"; sed -n 1,20p "$work/$name.log"; fi
-    grep -E "Error|error:|TypeError|ReferenceError|is not|Cannot" "$work/$name.log" | sort -u | head -8 || true
+    if [[ $spec == *@* ]]; then
+        at="${spec#*@}"
+        label="$name-t$(printf '%02d' "$at")"
+    fi
+    QT_QUICK_CONTROLS_STYLE="${QT_QUICK_CONTROLS_STYLE:-org.kde.desktop}" QT_QPA_PLATFORM=offscreen timeout 60 qml6 "$work/Shots.qml" -- "$name" "$out/$label.png" "$port" "$at" \
+        >"$work/$label.log" 2>&1 && status=0 || status=$?
+    if [[ $status -eq 0 && -s "$out/$label.png" ]]; then
+        echo "ok    $label"
+    else
+        echo "FAIL  $label (exit $status)"; failed=1
+        grep -E "^qml: FAIL|Error|error:" "$work/$label.log" | sort -u | head -5
+        tail -n 5 "$work/service.log"
+    fi
+    grep -E "Error|error:|TypeError|ReferenceError|is not|Cannot" "$work/$label.log" | sort -u | head -8 || true
 done
+exit "$failed"

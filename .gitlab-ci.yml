@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
 # SPDX-License-Identifier: MIT
 # Everything a container with no compositor can check: licences, ruff, vulture,
-# qmllint, shellcheck, and the three test suites (the QML one runs on Qt's
-# offscreen platform). The jobs run the same `make` targets a local machine runs,
+# qmllint, shellcheck, the three test suites (the QML one runs on Qt's offscreen
+# platform) and that the wheel builds with the chord database in it. The jobs run the same `make` targets a local machine runs,
 # so a red pipeline reproduces here. The screenshot harness (`make shots`) and
 # the real-shell check in docs/testing.md need KDE libraries and stay local.
 
@@ -48,3 +48,7 @@ js-tests:
 qml-tests:
   stage: test
   script: [make test-qml]
+
+build:
+  stage: test
+  script: [make check-build]

@@ -7,7 +7,7 @@ SPDX-FileCopyrightText = "2016 David Rubert <https://github.com/tombatossals/cho
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
-path = ["uv.lock", "VERSION", "LICENSE", "applet/metadata.json", "docs/**", ".gitignore", ".editorconfig", "*.md", ".gitlab/**", "packaging/chordist.svg"]
+path = ["uv.lock", "VERSION", "LICENSE", "applet/metadata.json", "docs/**", ".gitignore", ".editorconfig", "*.md", ".gitlab/**", "packaging/chordist.svg", "packaging/PKGBUILD"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Ritwick Verma <verma1997@gmail.com>"
 SPDX-License-Identifier = "MIT"

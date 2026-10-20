@@ -115,36 +115,48 @@ def _doctor(config: Config) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="chordist", description="synced lyrics and guitar chords")
+    parser = argparse.ArgumentParser(
+        prog="chordist",
+        description="Chordist: chords, tabs and lyrics for the song you are playing. With no command it runs the "
+        "local service the Plasma widget talks to.",
+        epilog="examples:\n"
+        "  chordist doctor                        check the service and its tools\n"
+        "  chordist chords Oasis Wonderwall       print a chart in the terminal\n"
+        "  chordist shapes Am7 F#m --svg          draw fingerings\n"
+        "  chordist local add Oasis Wonderwall my.txt   keep your own chart for a song",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--version", action="version", version=f"chordist {__version__}")
-    sub = parser.add_subparsers(dest="command")
+    sub = parser.add_subparsers(dest="command", metavar="command")
 
-    sub.add_parser("serve", help="run the local JSON API the widget uses")
-    sub.add_parser("health", help="print service status from the running daemon")
+    sub.add_parser("serve", help="run the local JSON API the widget uses (the default)")
+    sub.add_parser("health", help="print the running service's status")
 
-    for name, helptext in (("lyrics", "fetch lyrics"), ("chords", "fetch a chord chart")):
+    for name, helptext in (("lyrics", "fetch a song's synced lyrics"), ("chords", "fetch a chord chart or tab")):
         child = sub.add_parser(name, help=helptext)
-        child.add_argument("artist")
-        child.add_argument("title")
-        child.add_argument("--album", default="")
-        child.add_argument("--duration", type=float, default=0.0)
-        child.add_argument("--json", action="store_true", help="dump the raw JSON")
+        child.add_argument("artist", help="artist name (may be a channel name; it is cleaned up)")
+        child.add_argument("title", help="song title, as the player shows it")
+        child.add_argument("--album", default="", help="album, a hint for soundtrack songs")
+        child.add_argument("--duration", type=float, default=0.0, help="recording length in seconds, to tell versions apart")
+        child.add_argument("--json", action="store_true", help="print the raw JSON the widget would receive")
 
     shapes_parser = sub.add_parser("shapes", help="print chord fingerings")
-    shapes_parser.add_argument("names", nargs="+")
-    shapes_parser.add_argument("--svg", action="store_true")
-    shapes_parser.add_argument("--color", default="#ffffff")
-    shapes_parser.add_argument("--json", action="store_true")
+    shapes_parser.add_argument("names", nargs="+", metavar="chord", help="chord symbols such as C, F#m7, G/B")
+    shapes_parser.add_argument("--svg", action="store_true", help="draw each chord box as SVG")
+    shapes_parser.add_argument("--color", default="#ffffff", help="line colour for --svg (default: %(default)s)")
+    shapes_parser.add_argument("--json", action="store_true", help="print every voicing as JSON")
 
-    local = sub.add_parser("local", help="manage your own chord charts")
-    local.add_argument("action", nargs="?", default="list", choices=["list", "path", "add", "rm"])
-    local.add_argument("args", nargs="*")
+    local = sub.add_parser("local", help="manage your own chord charts (they always win over the internet)")
+    local.add_argument("action", nargs="?", default="list", choices=["list", "path", "add", "rm"],
+                       help="list (default), path (the directory), add ARTIST TITLE FILE, rm ARTIST TITLE")
+    local.add_argument("args", nargs="*", metavar="arg", help="arguments of add and rm")
 
-    cache = sub.add_parser("cache", help="inspect or clear caches")
-    cache.add_argument("action", nargs="?", default="stats", choices=["stats", "prune", "clear"])
+    cache = sub.add_parser("cache", help="inspect, prune or clear the caches")
+    cache.add_argument("action", nargs="?", default="stats", choices=["stats", "prune", "clear"],
+                       help="stats (default), prune (drop expired entries) or clear (drop everything)")
     sub.add_parser("doctor", help="check the tools and settings the service relies on")
 
-    sub.add_parser("config", help="print the configuration file path and values")
+    sub.add_parser("config", help="print the configuration file path and the effective values")
 
     args = parser.parse_args(argv)
     config = Config.load()

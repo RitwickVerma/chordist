@@ -19,6 +19,12 @@ A rebuild of the widget and a hardening of the service. Settings, saved charts a
 - Pin a tab by pasting its Ultimate Guitar address. A panel mode that shows the current chord.
 - `lyricist doctor`, `lyricist cache prune`; `make install|uninstall|test|lint|shots`.
 - Tests (pytest, node, qmltestrunner), a headless screenshot harness, CI, REUSE licensing, documentation.
+- For a public repository: LICENSE and third-party notices, code of conduct, issue and merge-request templates, an
+  icon, an Arch `PKGBUILD` (`make pkgbuild`), `make dist` and `make check-build`, a `chordist` command next to
+  `chordistd`, a troubleshooting guide, a release guide, an animated demo (`make demo`), and a `Legal` and
+  `Known limits` section in the README.
+- Python coverage went from 71% to 89% (`make coverage`): the CLI, titles, transliteration, LRC parsing,
+  fingerprinting, identity resolution and lyrics search all have tests now.
 
 ### Changed
 - **Renamed: everything is Chordist now** (it was `lyricist`): widget `com.ritwick.chordist`, service `chordistd`,

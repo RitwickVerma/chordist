@@ -99,7 +99,8 @@ lint-qml: ## qmllint over the widget's QML and JS (warnings are errors)
 	$(QMLLINT) -I /usr/lib/qt6/qml --unqualified disable --compiler disable --block-scope-var-declaration disable --max-warnings 0 $(QML_FILES) $(JS_FILES)
 
 lint-shell: ## shellcheck over the launcher and scripts
-	shellcheck bin/chordistd tests/qml/run.sh tools/migrate-from-lyricist.sh
+	shellcheck bin/chordistd tests/qml/run.sh tests/qml/demo.sh tools/migrate-from-lyricist.sh
+	shellcheck -s bash -e SC2034,SC2154 packaging/PKGBUILD
 
 lint-deadcode: ## vulture: Python nothing calls
 	$(UV) run vulture chordist tools tests/python --min-confidence 60 \
