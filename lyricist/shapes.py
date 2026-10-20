@@ -1,18 +1,25 @@
 """Chord diagram data.
 
-No images and no network: a chord name is turned into fret/finger positions
-that the widget draws itself, so diagrams stay crisp at any DPI and follow the
-Plasma colour scheme automatically.
+No images and no network: a chord name is turned into fret/finger positions that
+the widget draws itself, so diagrams stay crisp at any DPI and follow the Plasma
+colour scheme.
 
-Open-position voicings are listed explicitly because they are what people
-actually play; everything else is derived from the standard movable E-shape and
-A-shape barre forms, transposed to the root.
+Fingerings come from chords-db (https://github.com/tombatossals/chords-db, MIT,
+(c) 2016 David Rubert), vendored in ``data/guitar-chords.json``: real voicings
+with finger numbers and barres, several positions per chord, slash chords
+included. Chords it lacks (power chords, unusual extensions) are derived from
+the standard movable E-shape and A-shape barre forms, transposed to the root.
 """
 
 from __future__ import annotations
 
+import functools
+import json
 import re
+from pathlib import Path
 from typing import Any
+
+_DATA = Path(__file__).resolve().parent / "data" / "guitar-chords.json"
 
 NOTE_PC: dict[str, int] = {
     "C": 0, "B#": 0,
@@ -29,81 +36,27 @@ NOTE_PC: dict[str, int] = {
     "B": 11, "Cb": 11,
 }
 
+# How chords-db spells its twelve keys.
+_DB_KEYS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+# Our canonical suffixes, in chords-db's words.
+_DB_SUFFIX = {
+    "": "major", "m": "minor", "7": "7", "maj7": "maj7", "m7": "m7", "6": "6", "m6": "m6",
+    "sus4": "sus4", "sus2": "sus2", "dim": "dim", "aug": "aug", "m7b5": "m7b5", "add9": "add9",
+    "9": "9", "m9": "m9", "maj9": "maj9",
+}
+
 _STRING_ROOT = {"E": 4, "A": 9}
-_NOTES_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 _CHORD_RE = re.compile(r"^([A-G][#b♯♭]?)(.*?)(?:/([A-G][#b♯♭]?))?$")
 
-# Exact open voicings, written as fret-per-string from low E to high E.
-_OPEN: dict[str, tuple[str, str]] = {
-    "C": ("x32010", "x32010"),
-    "Cmaj7": ("x32000", "x32000"),
-    "C7": ("x32310", "x32310"),
-    "C6": ("x32210", "x32210"),
-    "Cadd9": ("x32030", "x32030"),
-    "C9": ("x32333", "x32333"),
-    "D": ("xx0232", "xx0132"),
-    "Dm": ("xx0231", "xx0231"),
-    "D7": ("xx0212", "xx0213"),
-    "Dmaj7": ("xx0222", "xx0122"),
-    "Dm7": ("xx0211", "xx0211"),
-    "D6": ("xx0202", "xx0203"),
-    "Dsus2": ("xx0230", "xx0230"),
-    "Dsus4": ("xx0233", "xx0134"),
-    "Dadd9": ("xx0230", "xx0130"),
-    "E": ("022100", "023100"),
-    "Em": ("022000", "023000"),
-    "E7": ("020100", "023140"),
-    "Emaj7": ("021100", "023140"),
-    "Em7": ("020000", "023000"),
-    "E6": ("022120", "023140"),
-    "Esus4": ("022200", "023400"),
-    "Esus2": ("024400", "024400"),
-    "A": ("x02220", "x02310"),
-    "Am": ("x02210", "x02310"),
-    "A7": ("x02020", "x02324"),
-    "Amaj7": ("x02120", "x02320"),
-    "Am7": ("x02010", "x02313"),
-    "A6": ("x02222", "x02344"),
-    "Am6": ("x02212", "x02314"),
-    "Asus2": ("x02200", "x02300"),
-    "Asus4": ("x02230", "x02340"),
-    "Aadd9": ("x02420", "x02430"),
-    "G": ("320003", "320004"),
-    "G7": ("320001", "320001"),
-    "Gmaj7": ("320002", "320002"),
-    "G6": ("320000", "320000"),
-    "Gadd9": ("320203", "320203"),
-    "B7": ("x21202", "x21314"),
-    "Bm7": ("x20202", "x20203"),
-    "Bm7b5": ("x2323x", "x2314x"),
-    "Bb": ("x13331", "x13241"),
-    "Bbmaj7": ("x13231", "x13241"),
-    "Bbm7": ("x13121", "x13121"),
-    "F": ("133211", "134211"),
-    "Fm": ("133111", "134111"),
-    "F7": ("131211", "131214"),
-    "Fmaj7": ("xx3210", "xx3210"),
-    "Fm7": ("131111", "131411"),
-    "Cm7b5": ("x3434x", "x3424x"),
-    "Ab": ("431114", "432114"),
-    "Abaug": ("432110", "432110"),
-    "Eb": ("x65343", "x65344"),
-    "Ebmaj7": ("x65333", "x65334"),
-    "Ebm7": ("x68676", "x13141"),
-    "Db": ("x43121", "x43221"),
-    "Dbmaj7": ("x43111", "x43221"),
-    "C#m": ("x46654", "x46654"),
-    "F#m": ("244222", "244222"),
-    "F#m7": ("242222", "243222"),
-    "Bm": ("x24432", "x24432"),
-    "B": ("x24442", "x24444"),
-    "Gm": ("355333", "355333"),
-    "Gm7": ("353333", "353333"),
-    "Cm": ("x35543", "x35543"),
-    "C#m7": ("x46454", "x46454"),
-    "F#": ("244322", "244322"),
-}
+
+@functools.lru_cache(maxsize=1)
+def _db() -> dict[str, dict[str, list[dict[str, Any]]]]:
+    try:
+        return json.loads(_DATA.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
 
 # Movable barre forms: suffix -> string-set -> (offsets, fingers)
 # Offsets are relative to the root fret on that string; "x" mutes the string.
@@ -157,13 +110,7 @@ def canonical_suffix(raw: str) -> str:
         return _SUFFIX_ALIASES[value]
     if value in _MOVABLE:
         return value
-    if value in _OPEN:
-        return value
     return _SUFFIX_ALIASES.get(value, "")
-
-
-def _expand(compact: str) -> list[int]:
-    return [-1 if ch in "xX" else int(ch) for ch in compact]
 
 
 def _expand_fingers(compact: str) -> list[int]:
@@ -171,13 +118,7 @@ def _expand_fingers(compact: str) -> list[int]:
 
 
 def _transpose(compact: str, fret: int) -> list[int]:
-    out: list[int] = []
-    for ch in compact:
-        if ch in "xX":
-            out.append(-1)
-        else:
-            out.append(fret + int(ch))
-    return out
+    return [-1 if ch in "xX" else fret + int(ch) for ch in compact]
 
 
 def _base_fret(frets: list[int]) -> int:
@@ -205,73 +146,89 @@ def _barre_fret(frets: list[int]) -> int | None:
     return lowest
 
 
-def shape_for(name: str) -> dict[str, Any] | None:
-    """Return fret/finger data for a chord symbol, or ``None`` if unplayable."""
+
+def _parse(name: str) -> tuple[str, str, str, str | None] | None:
+    """``(cleaned, root, suffix, bass)`` for a playable chord symbol, else ``None``."""
     cleaned = (name or "").strip().replace("♯", "#").replace("♭", "b")
-    if not cleaned:
-        return None
-    if cleaned.upper() in ("N.C.", "NC", "X"):
+    if not cleaned or cleaned.upper() in ("N.C.", "NC", "X"):
         return None
     # German charts write B natural as H (and the letter B means B flat there),
     # so Hm is Bm. Only H is rewritten: an English B is a B natural.
     if cleaned[:1] in ("H", "h"):
         cleaned = "B" + cleaned[1:]
-
     match = _CHORD_RE.match(cleaned)
-    if not match:
+    if not match or match.group(1) not in NOTE_PC:
         return None
-    root, suffix_raw, bass = match.group(1), match.group(2) or "", match.group(3)
-    if root not in NOTE_PC:
-        return None
+    return cleaned, match.group(1), match.group(2) or "", match.group(3)
 
-    approx = False
+
+def _db_voicings(
+    name: str, root: str, suffix_raw: str, bass: str | None
+) -> list[dict[str, Any]]:
+    """The chords-db voicings of a chord: open shapes first, then up the neck."""
+    table = _db().get(_DB_KEYS[NOTE_PC[root]], {})
+    raw = {"maj": "major", "M": "major", "min": "minor", "-": "minor"}.get(suffix_raw, suffix_raw)
+    suffix = raw if raw in table else _DB_SUFFIX.get(canonical_suffix(suffix_raw))
+    if suffix is None or suffix not in table:
+        return []
+    positions = table[suffix]
+    # A slash chord has voicings of its own where chords-db lists them.
+    if bass and bass in NOTE_PC and suffix in ("major", "minor"):
+        slash = ("m/" if suffix == "minor" else "/") + _DB_KEYS[NOTE_PC[bass]]
+        positions = table.get(slash) or positions
+    out: list[dict[str, Any]] = []
+    for position in positions:
+        base = int(position.get("base") or 1)
+        # chords-db frets count from the base fret of the box; ours are absolute.
+        frets = [f if f <= 0 else f + base - 1 for f in position["frets"]]
+        barres = position.get("barres") or []
+        voicing = _voicing(name, frets, [int(f) for f in position["fingers"]], bass, None, False)
+        voicing["base"] = base
+        voicing["barre"] = barres[0] + base - 1 if barres else None
+        voicing["source"] = "chords-db"
+        out.append(voicing)
+    return out
+
+
+def _movable_voicings(
+    name: str, root: str, suffix_raw: str, bass: str | None
+) -> list[dict[str, Any]]:
+    """Barre shapes derived for chords the database lacks, lowest position first."""
     suffix = canonical_suffix(suffix_raw)
-
-    exact = f"{root}{suffix}"
-    if exact in _OPEN:
-        frets = _expand(_OPEN[exact][0])
-        fingers = _expand_fingers(_OPEN[exact][1])
-        return {
-            "name": cleaned,
-            "frets": frets,
-            "fingers": fingers,
-            "base": _base_fret(frets),
-            "barre": _barre_fret(frets),
-            "bass": bass,
-            "approx": False,
-        }
-
-    if suffix_raw and suffix == "" and not suffix_raw.isdigit():
-        approx = True
-
-    forms = _MOVABLE.get(suffix)
-    if not forms:
-        forms = _MOVABLE[""]
-        approx = True
-
-    root_pc = NOTE_PC[root]
-    options: list[tuple[str, int]] = []
+    approx = bool(suffix_raw and suffix == "" and not suffix_raw.isdigit())
+    forms = _MOVABLE.get(suffix) or _MOVABLE[""]
+    approx = approx or suffix not in _MOVABLE
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[int, ...]] = set()
     for string_name, root_of_string in _STRING_ROOT.items():
-        fret = (root_pc - root_of_string) % 12
-        if fret == 0:
-            fret = 12
-        options.append((string_name, fret))
-    # Prefer the shape that sits lowest on the neck.
-    string_name, fret = min(options, key=lambda item: item[1])
+        fret = (NOTE_PC[root] - root_of_string) % 12 or 12
+        picked = forms.get(string_name)
+        if not picked:
+            continue
+        frets = _transpose(picked[0], fret)
+        if tuple(frets) in seen:
+            continue
+        seen.add(tuple(frets))
+        voicing = _voicing(name, frets, _expand_fingers(picked[1]), bass, 0 if string_name == "E" else 1, approx)
+        voicing["source"] = "derived"
+        out.append(voicing)
+    out.sort(key=lambda shape: (shape["base"] > 1, shape["base"]))
+    return out
 
-    picked = forms.get(string_name) or forms["E"]
-    frets = _transpose(picked[0], fret)
 
-    return {
-        "name": cleaned,
-        "frets": frets,
-        "fingers": _expand_fingers(picked[1]),
-        "base": _base_fret(frets),
-        "barre": _barre_fret(frets),
-        "bass": bass,
-        "root_string": 0 if string_name == "E" else 1,
-        "approx": approx,
-    }
+def variants_for(name: str) -> list[dict[str, Any]]:
+    """Every sensible voicing of a chord symbol, easiest first."""
+    parsed = _parse(name)
+    if not parsed:
+        return []
+    cleaned, root, suffix_raw, bass = parsed
+    return _db_voicings(cleaned, root, suffix_raw, bass) or _movable_voicings(cleaned, root, suffix_raw, bass)
+
+
+def shape_for(name: str) -> dict[str, Any] | None:
+    """The default voicing of a chord symbol, or ``None`` if unplayable."""
+    variants = variants_for(name)
+    return variants[0] if variants else None
 
 
 def shapes_for(names: list[str] | None) -> dict[str, Any]:
@@ -297,60 +254,6 @@ def _voicing(name: str, frets: list[int], fingers: list[int], bass: str | None,
         "root_string": root_string,
         "approx": approx,
     }
-
-
-def variants_for(name: str) -> list[dict[str, Any]]:
-    """Every sensible voicing of a chord symbol, lowest positions first.
-
-    The open shape (when we know one) comes first, then the movable E-shape and
-    A-shape placed at the fret that puts the root on that string: the barre and
-    shifted alternatives a player reaches for when the open shape will not do.
-    """
-    cleaned = (name or "").strip().replace("♯", "#").replace("♭", "b")
-    if not cleaned or cleaned.upper() in ("N.C.", "NC", "X"):
-        return []
-    if cleaned[:1] in ("H", "h"):
-        cleaned = "B" + cleaned[1:]
-    match = _CHORD_RE.match(cleaned)
-    if not match:
-        return []
-    root, suffix_raw, bass = match.group(1), match.group(2) or "", match.group(3)
-    if root not in NOTE_PC:
-        return []
-
-    suffix = canonical_suffix(suffix_raw)
-    approx = bool(suffix_raw and suffix == "" and not suffix_raw.isdigit())
-
-    out: list[dict[str, Any]] = []
-    seen: set[tuple[int, ...]] = set()
-
-    def add(frets: list[int], fingers: list[int], root_string: int | None,
-            is_approx: bool) -> None:
-        key = tuple(frets)
-        if key in seen:
-            return
-        seen.add(key)
-        out.append(_voicing(cleaned, frets, fingers, bass, root_string, is_approx))
-
-    exact = f"{root}{suffix}"
-    if exact in _OPEN:
-        add(_expand(_OPEN[exact][0]), _expand_fingers(_OPEN[exact][1]), None, False)
-
-    forms = _MOVABLE.get(suffix) or _MOVABLE[""]
-    root_pc = NOTE_PC[root]
-    for string_name, root_of_string in _STRING_ROOT.items():
-        fret = (root_pc - root_of_string) % 12
-        if fret == 0:
-            fret = 12
-        picked = forms.get(string_name)
-        if not picked:
-            continue
-        add(_transpose(picked[0], fret), _expand_fingers(picked[1]),
-            0 if string_name == "E" else 1, approx)
-
-    # Open shapes first, then the movable ones climbing the neck.
-    out.sort(key=lambda shape: (shape["base"] > 1, shape["base"]))
-    return out
 
 
 def from_applicature(name: str, entries: Any) -> list[dict[str, Any]]:

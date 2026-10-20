@@ -75,7 +75,7 @@ Rectangle {
                     font.weight: Font.Bold
                     color: Kirigami.Theme.highlightColor
                 }
-                Chip {
+                InfoChip {
                     visible: stage.roman.length > 0
                     Layout.alignment: Qt.AlignVCenter
                     text: stage.roman

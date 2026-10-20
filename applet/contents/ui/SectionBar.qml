@@ -36,7 +36,7 @@ RowLayout {
                 var span = bar.current
                 if (!span) return
                 for (var i = 0; i < repeater.count; i++) {
-                    const chip = repeater.itemAt(i) as Chip
+                    const chip = repeater.itemAt(i) as InfoChip
                     if (chip && chip.payload.row === span.row) {
                         flick.contentX = Math.max(0, Math.min(flick.contentWidth - flick.width,
                             chip.x - (flick.width - chip.width) / 2))
@@ -52,14 +52,14 @@ RowLayout {
             Repeater {
                 id: repeater
                 model: bar.spans
-                delegate: Chip {
+                delegate: InfoChip {
                     id: chip
                     required property var modelData
                     readonly property var span: modelData
                     payload: modelData
                     interactive: true
                     highlighted: !!(bar.current && bar.current.row === span.row)
-                    icon: bar.loop && bar.loop.start === span.start ? "media-playlist-repeat" : ""
+                    icon.name: bar.loop && bar.loop.start === span.start ? "media-playlist-repeat" : ""
                     text: span.name.length > 18 ? span.name.substring(0, 17) + "…" : span.name
                     tip: i18n("Jump to %1", span.name)
                     onClicked: {

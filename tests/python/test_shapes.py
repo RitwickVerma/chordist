@@ -8,9 +8,51 @@ def test_open_c_is_the_textbook_shape():
     assert shape["frets"] == [-1, 3, 2, 0, 1, 0] and shape["base"] == 1
 
 
-def test_barre_chord_is_derived_and_flagged():
+def test_barre_chord_has_its_barre_and_finger_numbers():
     shape = shapes.shape_for("F#m")
-    assert shape["frets"] == [2, 4, 4, 2, 2, 2] and shape["barre"] == 2 and shape["base"] == 2
+    assert shape["frets"] == [2, 4, 4, 2, 2, 2] and shape["barre"] == 2 and shape["base"] == 1
+    assert shape["fingers"] == [1, 3, 4, 1, 1, 1] and shape["source"] == "chords-db"
+
+
+def test_database_frets_are_made_absolute_for_higher_positions():
+    # chords-db stores the second F voicing relative to its base fret (3).
+    higher = shapes.variants_for("F")[1]
+    assert higher["base"] == 3 and higher["frets"] == [-1, 3, 3, 5, 6, 5] and higher["barre"] == 3
+
+
+def test_open_voicings_come_before_barre_voicings():
+    for name in ("C", "G", "Am", "E7"):
+        bases = [v["base"] for v in shapes.variants_for(name)]
+        assert bases[0] == 1, name
+
+
+def test_spellings_of_one_chord_share_voicings():
+    assert shapes.shape_for("A#")["frets"] == shapes.shape_for("Bb")["frets"]
+    assert shapes.shape_for("Amin")["frets"] == shapes.shape_for("Am")["frets"]
+    assert shapes.shape_for("Dmaj")["frets"] == shapes.shape_for("D")["frets"]
+
+
+def test_slash_chords_use_their_own_voicing_when_one_exists():
+    assert shapes.shape_for("C/E")["frets"] == [0, 3, 2, 0, 1, 0]
+    assert shapes.shape_for("C/E")["bass"] == "E"
+    # no database entry for this one: the plain chord, tagged with its bass
+    assert shapes.shape_for("D/B")["bass"] == "B"
+
+
+def test_extended_chords_are_found_by_their_own_name():
+    assert shapes.shape_for("A7sus4")["frets"] == [-1, 0, 2, 0, 3, 0]
+    assert shapes.shape_for("G13") is not None and shapes.shape_for("Fmaj7#5") is not None
+
+
+def test_a_chord_the_database_lacks_is_derived_not_dropped():
+    power = shapes.shape_for("E5")
+    assert power["source"] == "derived" and len(power["frets"]) == 6
+    assert shapes.shape_for("C#5") is not None
+
+
+def test_database_loads_and_covers_every_root():
+    assert len(shapes._db()) == 12
+    assert all(shapes.shape_for(f"{r}m7") for r in ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"))
 
 
 def test_no_chord_has_no_shape():

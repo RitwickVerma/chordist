@@ -21,50 +21,50 @@ Flow {
     visible: !!(applet && applet.chordsAvailable) && children.length > 0
     spacing: Kirigami.Units.smallSpacing
 
-    Chip {
+    InfoChip {
         visible: !!strip.key
         text: strip.key ? i18n("Key %1", strip.key.name) : ""
         tip: strip.key ? (strip.key.source === "tab" ? i18n("The key the tab states") : i18n("Worked out from the chords")) : ""
     }
-    Chip {
+    InfoChip {
         visible: !!(strip.applet && strip.applet.capo > 0)
         text: strip.applet ? i18n("Capo %1", strip.applet.capo) : ""
         tip: i18n("Shapes below are played with the capo on this fret")
     }
     // The capo calculator's suggestion: one click applies it.
-    Chip {
+    InfoChip {
         visible: !!strip.advice
         interactive: true
         highlighted: true
-        icon: "tools-wizard"
+        icon.name: "tools-wizard"
         text: strip.advice ? i18n("Easier: capo %1 → %2", strip.advice.capo,
                                   strip.advice.shapes.slice(0, 4).join(" ")) : ""
         tip: i18n("Click to use this capo. These are the shapes it leaves you with.")
         onClicked: strip.applet.capo = strip.advice.capo
     }
-    Chip {
+    InfoChip {
         visible: !strip.standardTuning
         text: i18n("Tuning %1", strip.tuningNotes.join(" "))
         tip: strip.tuning.name ? strip.tuning.name : ""
         highlighted: true
     }
-    Chip {
+    InfoChip {
         visible: strip.difficulty.length > 0
         text: strip.difficulty.charAt(0).toUpperCase() + strip.difficulty.slice(1)
         tip: i18n("Difficulty, as rated on Ultimate Guitar")
     }
-    Chip {
+    InfoChip {
         visible: !!meta.bpm
         text: i18n("♩ %1 bpm", meta.bpm)
         tip: i18n("Tempo from the strumming pattern")
     }
-    Chip {
+    InfoChip {
         visible: !!(meta.rating && meta.votes)
-        dim: true
+        opacity: 0.7
         text: meta.rating ? "★ " + Number(meta.rating).toFixed(1) + " · " + Util.compactCount(meta.votes) : ""
         tip: meta.views ? i18n("%1 views, %2 favourites", Util.compactCount(meta.views), Util.compactCount(meta.favorites)) : ""
     }
-    Chip {
+    InfoChip {
         visible: !!(strip.applet && strip.applet.chartKind === "tab")
         text: i18n("Tablature")
     }

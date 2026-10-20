@@ -82,47 +82,20 @@ Item {
         }
 
         // Two tabs: Lyrics (when there are some) and the chart.
-        RowLayout {
+        PlasmaComponents3.TabBar {
             id: tabs
             Layout.fillWidth: true
-            Layout.leftMargin: Kirigami.Units.smallSpacing
-            spacing: 0
-            property int current: 1
+            // Position 0 is Lyrics, 1 is the chart, even while Lyrics is hidden.
+            property alias current: tabs.currentIndex
 
-            Repeater {
-                model: [
-                    { index: 0, text: i18n("Lyrics"), shown: full.lyricsAvailable },
-                    { index: 1, text: full.applet && full.applet.chartKind === "tab" ? i18n("Tab") : i18n("Chords"), shown: true }
-                ]
-                delegate: PlasmaComponents3.AbstractButton {
-                    id: tab
-                    required property var modelData
-                    visible: modelData.shown
-                    checked: tabs.current === modelData.index
-                    onClicked: tabs.current = modelData.index
-                    leftPadding: Kirigami.Units.largeSpacing
-                    rightPadding: Kirigami.Units.largeSpacing
-                    topPadding: Kirigami.Units.smallSpacing
-                    bottomPadding: Kirigami.Units.smallSpacing
-                    Accessible.role: Accessible.PageTab
-                    contentItem: PlasmaComponents3.Label {
-                        text: tab.modelData.text
-                        font.weight: tab.checked ? Font.DemiBold : Font.Normal
-                        opacity: tab.checked ? 1 : 0.65
-                    }
-                    background: Rectangle {
-                        color: tab.hovered ? Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06) : "transparent"
-                        Rectangle {
-                            anchors.bottom: parent.bottom
-                            width: parent.width
-                            height: 2
-                            color: Kirigami.Theme.highlightColor
-                            visible: tab.checked
-                        }
-                    }
-                }
+            PlasmaComponents3.TabButton {
+                text: i18n("Lyrics")
+                visible: full.lyricsAvailable
+                width: visible ? implicitWidth : 0
             }
-            Item { Layout.fillWidth: true }
+            PlasmaComponents3.TabButton {
+                text: full.applet && full.applet.chartKind === "tab" ? i18n("Tab") : i18n("Chords")
+            }
         }
 
         Rectangle {

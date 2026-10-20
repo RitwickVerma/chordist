@@ -78,8 +78,8 @@ PlasmoidItem {
     function toggleWindow() { windowVisible = !windowVisible }
     // Opening is the moment to put the tab back where the user wants it: the
     // popup and the window are each built once and then reused.
-    onExpandedChanged: if (expanded) song.openCount++
-    onWindowVisibleChanged: if (windowVisible) song.openCount++
+    onExpandedChanged: function () { if (root.expanded) song.openCount++ }
+    onWindowVisibleChanged: function () { if (root.windowVisible) song.openCount++ }
     // Esc, from inside either: close whichever is open.
     function closeSelf() {
         if (windowVisible) windowVisible = false
