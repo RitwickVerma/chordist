@@ -12,7 +12,7 @@ import logging
 import sys
 from typing import Any
 
-from . import __version__, chart, shapes
+from . import __version__, shapes
 from .cache import DiskCache
 from .config import Config, config_path
 from .http import Throttle
@@ -76,6 +76,40 @@ def _render_shapes(names: list[str], color: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _doctor(config: Config) -> int:
+    """Print what the service can and cannot do on this machine."""
+    import shutil
+    import urllib.request
+
+    problems = 0
+
+    def report(ok: bool, label: str, detail: str = "", hint: str = "", required: bool = False) -> None:
+        nonlocal problems
+        mark = "ok  " if ok else ("FAIL" if required else "warn")
+        if not ok and required:
+            problems += 1
+        text = detail if ok or not hint else (f"{detail} - {hint}" if detail else hint)
+        print(f"[{mark}] {label}" + (f" - {text}" if text else ""))
+
+    report(config_path().is_file(), "config file", str(config_path()), hint="absent, defaults are used")
+    report(bool(config.get("contact")), "LRCLIB contact", hint='set "contact" in the config so LRCLIB can reach you')
+    url = f"http://{config.get('host')}:{config.get('port')}/api/health"
+    try:
+        with urllib.request.urlopen(url, timeout=3) as response:
+            health = json.loads(response.read())
+        report(True, "service answering", f"{url} (v{health.get('version')}, up {health.get('uptime_seconds', '?')}s)")
+    except Exception as exc:
+        report(False, "service answering", f"{url}: {exc}", hint="start it: systemctl --user start lyricistd", required=True)
+    if config.get("fingerprint_enabled", True):
+        for tool in ("pw-record", "pactl"):
+            report(bool(shutil.which(tool)), f"{tool} on PATH", hint="needed to listen to the audio when metadata is junk")
+        songrec = str(config.get("songrec_path") or "") or shutil.which("songrec")
+        report(bool(songrec), "songrec", str(songrec or ""), hint="not installed: audio identification is skipped")
+    else:
+        report(True, "audio identification", "disabled in the config")
+    return 1 if problems else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lyricist", description="synced lyrics and guitar chords")
     parser.add_argument("--version", action="version", version=f"lyricist {__version__}")
@@ -103,7 +137,8 @@ def main(argv: list[str] | None = None) -> int:
     local.add_argument("args", nargs="*")
 
     cache = sub.add_parser("cache", help="inspect or clear caches")
-    cache.add_argument("action", nargs="?", default="stats", choices=["stats", "clear"])
+    cache.add_argument("action", nargs="?", default="stats", choices=["stats", "prune", "clear"])
+    sub.add_parser("doctor", help="check the tools and settings the service relies on")
 
     sub.add_parser("config", help="print the configuration file path and values")
 
@@ -124,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             with urllib.request.urlopen(url, timeout=3) as response:
                 print(json.dumps(json.loads(response.read()), indent=2))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"lyricistd is not answering at {url}: {exc}", file=sys.stderr)
             return 1
         return 0
@@ -195,15 +230,25 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "cache":
-        for namespace, ttl in (("lyrics", config.get("lyrics_ttl_seconds")), ("chords", config.get("chords_ttl_seconds"))):
+        ttls = {
+            "lyrics": config.get("lyrics_ttl_seconds"),
+            "chords": config.get("chords_ttl_seconds"),
+            "identity": config.get("identity_ttl_seconds", 30 * 24 * 3600),
+            "fingerprint": config.get("fingerprint_ttl_seconds"),
+        }
+        for namespace, ttl in ttls.items():
             cache = DiskCache(namespace, ttl=int(ttl or 0))
-            stats = cache.stats()
             if args.action == "clear":
-                removed = cache.clear()
-                print(f"{namespace}: cleared {removed} entries")
+                print(f"{namespace}: cleared {cache.clear()} entries")
+            elif args.action == "prune":
+                print(f"{namespace}: pruned {cache.prune()} entries")
             else:
+                stats = cache.stats()
                 print(f"{namespace}: {stats['entries']} entries, {stats['bytes'] / 1024:.1f} KiB, {stats['dir']}")
         return 0
+
+    if args.command == "doctor":
+        return _doctor(config)
 
     if args.command == "config":
         print(json.dumps(config.as_dict(), indent=2, sort_keys=True))

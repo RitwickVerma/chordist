@@ -18,11 +18,11 @@ import re
 import unicodedata
 
 __all__ = [
+    "devanagari_ratio",
     "devanagari_to_latin",
     "has_devanagari",
-    "devanagari_ratio",
-    "latin_ratio",
     "is_latin",
+    "latin_ratio",
     "needs_romanisation",
     "script_of",
 ]
@@ -44,7 +44,6 @@ _CONSONANTS = {
 _NUKTA = {
     "क": "q", "ख": "kh", "ग": "gh", "ज": "z",
     "ड": "r", "ढ": "rh", "फ": "f", "य": "y",
-    "ड": "r",
 }
 
 _VOWELS = {

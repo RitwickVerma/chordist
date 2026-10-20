@@ -171,9 +171,7 @@ def _is_credits(segment: str) -> bool:
     if any(word in _CREDIT_WORDS for word in tokens(segment)):
         return True
     # "A, B, C" - a comma list of names is a cast or a singer lineup.
-    if "," in segment and len(tokens(segment)) >= 2:
-        return True
-    return False
+    return bool("," in segment and len(tokens(segment)) >= 2)
 
 
 def song_candidates(title: str) -> list[str]:

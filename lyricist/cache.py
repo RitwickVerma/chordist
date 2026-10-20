@@ -70,6 +70,25 @@ class DiskCache:
             return {"entries": 0, "bytes": 0, "dir": str(self.dir)}
         return {"entries": len(files), "bytes": size, "dir": str(self.dir)}
 
+    def prune(self) -> int:
+        """Delete expired and unreadable entries; returns how many went."""
+        removed = 0
+        for path in self.dir.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                stored_at = data.get("_stored_at", 0)
+                ttl = data.get("_ttl", self.ttl)
+                expired = bool(ttl and ttl > 0 and (time.time() - stored_at) > ttl)
+            except (OSError, ValueError, AttributeError):
+                expired = True
+            if expired:
+                try:
+                    os.unlink(path)
+                    removed += 1
+                except OSError:
+                    pass
+        return removed
+
     def clear(self) -> int:
         removed = 0
         for path in self.dir.glob("*.json"):

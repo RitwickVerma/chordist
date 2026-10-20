@@ -97,10 +97,11 @@ class SongPrefs:
             for field in list(entry):
                 if entry[field] == "" or entry[field] is None:
                     del entry[field]
+            # Re-insert so the song moves to the fresh end: eviction below drops
+            # the entry untouched for longest, not merely the one written first.
+            data.pop(key, None)
             if entry:
                 data[key] = entry
-            else:
-                data.pop(key, None)
             while len(data) > _MAX_ENTRIES:
                 data.pop(next(iter(data)), None)
             self._write(data)

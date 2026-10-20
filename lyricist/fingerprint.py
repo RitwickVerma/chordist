@@ -34,8 +34,7 @@ def _run(argv: list[str], timeout: float) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
             argv,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
             check=False,
         )
@@ -146,10 +145,7 @@ def identify(
 
     identity: dict[str, Any] | None = None
     try:
-        if seconds is not None:
-            secs = float(seconds)
-        else:
-            secs = float(config.get("fingerprint_seconds", 6) or 6)
+        secs = float(seconds) if seconds is not None else float(config.get("fingerprint_seconds", 6) or 6)
         with tempfile.TemporaryDirectory(prefix="lyricist-fp-") as tmp:
             wav = capture(secs, os.path.join(tmp, "capture.wav"))
             identity = recognize(wav, config)

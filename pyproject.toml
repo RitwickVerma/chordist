@@ -1,0 +1,34 @@
+[project]
+name = "chordist"
+version = "2.0.0"
+description = "Lyrics, chords and tabs for whatever you are playing: the local service behind the Chordist Plasma widget"
+authors = [{ name = "Ritwick Verma", email = "verma1997@gmail.com" }]
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+lyricist = "lyricist.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.5", "vulture>=2.11"]
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+module-name = "lyricist"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+addopts = ["-q", "--tb=short"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]

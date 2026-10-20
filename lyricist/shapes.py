@@ -261,12 +261,11 @@ def shape_for(name: str) -> dict[str, Any] | None:
 
     picked = forms.get(string_name) or forms["E"]
     frets = _transpose(picked[0], fret)
-    fingers = _expand_fingers(picked[1])
 
     return {
         "name": cleaned,
         "frets": frets,
-        "fingers": fingers,
+        "fingers": _expand_fingers(picked[1]),
         "base": _base_fret(frets),
         "barre": _barre_fret(frets),
         "bass": bass,
@@ -354,6 +353,41 @@ def variants_for(name: str) -> list[dict[str, Any]]:
     return out
 
 
+def from_applicature(name: str, entries: Any) -> list[dict[str, Any]]:
+    """Voicings in Ultimate Guitar's own ``applicature`` format, as ours.
+
+    UG lists strings from the high e down to the low E; this module goes low to
+    high, so both arrays are reversed. Entries that are not six strings of
+    plain integers are dropped rather than guessed at. Finger numbers come
+    along, which the hand-written tables above do not know.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[int, ...]] = set()
+    for entry in entries if isinstance(entries, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        frets, fingers = entry.get("frets"), entry.get("fingers")
+        if not (isinstance(frets, list) and len(frets) == 6):
+            continue
+        if not all(isinstance(f, int) and not isinstance(f, bool) and f >= -1 for f in frets):
+            continue
+        low_to_high = frets[::-1]
+        key = tuple(low_to_high)
+        if key in seen:
+            continue
+        seen.add(key)
+        if isinstance(fingers, list) and len(fingers) == 6 and all(isinstance(f, int) for f in fingers):
+            finger_row = [max(0, f) for f in fingers[::-1]]
+        else:
+            finger_row = [0] * 6
+        bass = name.split("/", 1)[1] if "/" in name else None
+        voicing = _voicing(name, low_to_high, finger_row, bass, None, False)
+        voicing["source"] = "ultimate-guitar"
+        out.append(voicing)
+    out.sort(key=lambda shape: (shape["base"] > 1, shape["base"]))
+    return out
+
+
 def variants_for_names(names: list[str] | None) -> dict[str, list[dict[str, Any]]]:
     result: dict[str, list[dict[str, Any]]] = {}
     for name in names or []:
@@ -369,7 +403,6 @@ def svg(shape: dict[str, Any], color: str = "currentColor") -> str:
     """Render a shape as standalone SVG (for the CLI and for docs)."""
     frets = shape["frets"]
     base = shape["base"]
-    fingers = shape.get("fingers") or []
     span = 5
     width, height = 92, 116
     left, top = 14, 16

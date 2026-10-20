@@ -82,7 +82,7 @@ def chords_dir() -> Path:
 def user_agent(contact: str = "") -> str:
     from . import __version__
 
-    agent = f"lyricist/{__version__} (KDE Plasma widget)"
+    agent = f"chordist-lyricist/{__version__} (KDE Plasma widget)"
     if contact:
         agent += f" (contact: {contact})"
     return agent
@@ -109,7 +109,7 @@ class Config:
         return dict(self._values)
 
     @classmethod
-    def load(cls) -> "Config":
+    def load(cls) -> Config:
         path = config_path()
         if path.is_file():
             try:

@@ -169,6 +169,80 @@ def _line_obj(lyric: str, chords: list[dict[str, Any]], mono: bool = False) -> d
     }
 
 
+# One string of a tablature staff: a string label, a bar line or colon, then
+# fret numbers, techniques (h p b r / \\ ~ ^ x) and runs of dashes.
+_STAFF_ROW_RE = re.compile(r"^\s*([A-Ga-g][#b]?)\s*([|:])(.*)$")
+_STAFF_BODY_RE = re.compile(r"^[-0-9a-zA-Z/\\~^()<>.*|+=:\s]*$")
+_STAFF_SIZES = (6, 4, 7, 8, 5)
+
+
+def staff_row(line: str) -> tuple[str, str] | None:
+    """``("G", "|--7--|")`` for a tablature row, or ``None`` for anything else."""
+    match = _STAFF_ROW_RE.match(line)
+    if not match:
+        return None
+    body = match.group(2) + match.group(3).rstrip()
+    rest = match.group(3)
+    if "--" not in rest or not _STAFF_BODY_RE.match(rest):
+        return None
+    ruled = sum(1 for ch in rest if ch in "-|0123456789")
+    if ruled < 0.6 * max(1, len(rest.strip())):
+        return None
+    return match.group(1), body
+
+
+def _staff_line(labels: list[str], rows: list[str]) -> dict[str, Any]:
+    width = max(len(row) for row in rows)
+    rows = [row.ljust(width, "-") for row in rows]
+    line = _line_obj("\n".join(f"{label}{row}" for label, row in zip(labels, rows, strict=True)), [], mono=True)
+    line["staff"] = {"labels": labels, "rows": rows}
+    return line
+
+
+def group_staves(lines: list[str], strings: int = 6) -> list[dict[str, Any] | str]:
+    """Split raw text lines into staff line-objects and plain text lines.
+
+    Tablature rows are collected in runs (a stray blank line inside a staff, as
+    Ultimate Guitar tabs often have, does not end it) and cut into staves of
+    ``strings`` rows - or of 4, 7 or 8 when that is what divides the run. A run
+    that does not make sense as a staff is handed back as plain text.
+    """
+    out: list[dict[str, Any] | str] = []
+    run: list[tuple[str, str]] = []
+
+    def flush() -> None:
+        nonlocal run
+        if not run:
+            return
+        size = next((n for n in (strings, *_STAFF_SIZES) if len(run) % n == 0), 0)
+        if size:
+            for start in range(0, len(run), size):
+                chunk = run[start:start + size]
+                out.append(_staff_line([label for label, _ in chunk], [row for _, row in chunk]))
+        else:
+            out.extend(f"{label}{row}" for label, row in run)
+        run = []
+
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        row = staff_row(line)
+        if row:
+            run.append(row)
+        elif not line.strip() and run:
+            # A blank line only belongs to the staff if more of it follows.
+            following = next((candidate for candidate in lines[index + 1:] if candidate.strip()), "")
+            if not staff_row(following):
+                flush()
+                out.append(line)
+        else:
+            flush()
+            out.append(line)
+        index += 1
+    flush()
+    return out
+
+
 def _split_tab_block(block: str) -> tuple[list[dict[str, Any]], bool]:
     """Turn a ``[tab]`` block into lines.
 
@@ -177,18 +251,24 @@ def _split_tab_block(block: str) -> tuple[list[dict[str, Any]], bool]:
     """
     raw_lines = block.split("\n")
     if not any(CH_OPEN in line for line in raw_lines):
-        return [_line_obj(line.rstrip(), [], mono=True) for line in raw_lines if line.strip()], True
+        staves: list[dict[str, Any]] = []
+        for item in group_staves(raw_lines):
+            if isinstance(item, dict):
+                staves.append(item)
+            elif item.strip():
+                staves.append(_line_obj(item.rstrip(), [], mono=True))
+        return staves, True
 
     lines: list[dict[str, Any]] = []
     index = 0
     while index < len(raw_lines):
-        kept, dropped, marks_kept, marks_dropped = scan_chords(raw_lines[index])
+        _kept, dropped, marks_kept, marks_dropped = scan_chords(raw_lines[index])
 
         if not dropped.strip():
             # A chord-position row: its columns line up with the row below.
             lyric = ""
             if index + 1 < len(raw_lines):
-                below, below_dropped, below_marks, _ = scan_chords(raw_lines[index + 1])
+                _below, below_dropped, below_marks, _ = scan_chords(raw_lines[index + 1])
                 if below_dropped.strip() and not below_marks:
                     lyric = below_dropped
                     index += 1
@@ -261,22 +341,30 @@ def _parse_ug(text: str, title: str, artist: str) -> dict[str, Any]:
             tab_lines, is_tab = _split_tab_block(chunk)
             if not tab_lines:
                 continue
-            if is_tab and not current["name"]:
-                current["name"] = "Tab"
-            if is_tab and current["lines"]:
-                flush()
-                current["name"] = "Tab"
+            if is_tab:
+                # Preamble text ("Tabbed by ...") is its own section; the staves
+                # that follow share one, rather than one section per [tab] block.
+                if current["lines"] and not current["name"] and not any("staff" in ln for ln in current["lines"]):
+                    flush()
+                if not current["name"]:
+                    current["name"] = "Tab"
             current["lines"].extend(tab_lines)
             continue
 
-        for line in chunk.split("\n"):
+        for item in group_staves(chunk.split("\n")):
+            if isinstance(item, dict):
+                if not current["name"] and not current["lines"]:
+                    current["name"] = "Tab"
+                current["lines"].append(item)
+                continue
+            line = item
             header = _header_name(line)
             if header:
                 flush()
                 current["name"] = header
                 continue
 
-            kept, dropped, marks_kept, marks_dropped = scan_chords(line)
+            _kept, dropped, marks_kept, marks_dropped = scan_chords(line)
             if not dropped.strip():
                 if marks_kept:
                     current["lines"].append(
@@ -303,10 +391,34 @@ def _parse_chordpro(text: str, title: str, artist: str) -> dict[str, Any]:
             sections.append(current)
         current = _new_section()
 
+    in_tab = False
+    tab_rows: list[str] = []
+
+    def flush_tab() -> None:
+        nonlocal tab_rows
+        for item in group_staves(tab_rows):
+            if isinstance(item, dict):
+                current["lines"].append(item)
+            elif item.strip():
+                current["lines"].append(_line_obj(item.rstrip(), [], mono=True))
+        tab_rows = []
+
     for line in text.split("\n"):
         directive = _DIRECTIVE_RE.match(line.strip())
+        if in_tab and not (directive and directive.group(1).lower() in ("eot", "end_of_tab")):
+            tab_rows.append(line)
+            continue
         if directive:
             name = directive.group(1).lower()
+            if name in ("sot", "start_of_tab"):
+                if not current["name"]:
+                    current["name"] = directive.group(2) or "Tab"
+                in_tab = True
+                continue
+            if name in ("eot", "end_of_tab"):
+                flush_tab()
+                in_tab = False
+                continue
             value = (directive.group(2) or "").strip()
             if name in ("title", "t"):
                 meta["title"] = value or meta["title"]
@@ -323,11 +435,9 @@ def _parse_chordpro(text: str, title: str, artist: str) -> dict[str, Any]:
                 flush()
                 current["name"] = value or "Comment"
             elif name in _SECTION_WORDS:
+                flush()
                 label = _SECTION_WORDS[name]
-                if label is None:
-                    flush()
-                else:
-                    flush()
+                if label is not None:
                     current["name"] = value or label
             continue
 
@@ -339,7 +449,7 @@ def _parse_chordpro(text: str, title: str, artist: str) -> dict[str, Any]:
             current["name"] = header
             continue
 
-        kept, dropped, marks_kept, marks_dropped = scan_chords(line)
+        kept, dropped, _marks_kept, marks_dropped = scan_chords(line)
         if marks_dropped:
             current["lines"].append(_line_obj(dropped, marks_dropped))
             continue
@@ -349,6 +459,8 @@ def _parse_chordpro(text: str, title: str, artist: str) -> dict[str, Any]:
         else:
             current["lines"].append(_line_obj(lyric, []))
 
+    if in_tab:
+        flush_tab()
     flush()
     return {"sections": sections, **meta, "source": "local"}
 
@@ -379,7 +491,7 @@ def _parse_plain(text: str, title: str, artist: str) -> dict[str, Any]:
             current["name"] = header
             continue
 
-        kept, dropped, marks_kept, marks_dropped = scan_chords(line)
+        kept, dropped, _marks_kept, _marks_dropped = scan_chords(line)
         lyric, marks = scan_brackets(kept)
         if marks:
             current["lines"].append(_line_obj(lyric, marks))
@@ -421,14 +533,23 @@ def detect_format(text: str) -> str:
 def parse(text: str, fmt: str = "auto", title: str = "", artist: str = "") -> dict[str, Any]:
     """Parse chart text into the normalised structure."""
     if not text or not text.strip():
-        return {"sections": [], "title": title, "artist": artist, "key": "", "capo": 0, "source": "none"}
+        return {
+            "sections": [], "title": title, "artist": artist, "key": "", "capo": 0,
+            "source": "none", "kind": "chords", "chord_names": [],
+        }
 
     text = html.unescape(text).replace("\r\n", "\n").replace("\r", "\n").replace("\t", "    ")
     chosen = detect_format(text) if fmt in ("auto", "", None) else fmt
     parser = {"ug": _parse_ug, "chordpro": _parse_chordpro, "plain": _parse_plain}.get(chosen, _parse_plain)
     result = parser(text, title, artist)
     result["format"] = chosen
-    result["chord_names"] = sorted({c["name"] for section in result["sections"] for line in section["lines"] for c in line["chords"]})
+    all_lines = [line for section in result["sections"] for line in section["lines"]]
+    result["chord_names"] = sorted({c["name"] for line in all_lines for c in line["chords"]})
+    # What the chart is made of, so the widget knows whether to offer chord
+    # diagrams (chords), a tab reader (tab) or both (mixed).
+    has_chords = any(line["chords"] for line in all_lines)
+    has_staff = any("staff" in line for line in all_lines)
+    result["kind"] = "mixed" if has_chords and has_staff else ("tab" if has_staff else "chords")
     return result
 
 
@@ -455,6 +576,11 @@ def to_chordpro(result: dict[str, Any]) -> str:
             out.append(f"{{comment: {section['name']}}}")
         for line in section.get("lines", []):
             lyric = line.get("lyric", "")
+            if line.get("staff"):
+                out.append("{start_of_tab}")
+                out.extend(lyric.split("\n"))
+                out.append("{end_of_tab}")
+                continue
             if not line.get("chords"):
                 out.append(lyric)
                 continue

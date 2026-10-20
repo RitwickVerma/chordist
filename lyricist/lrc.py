@@ -12,6 +12,7 @@ the widget do real karaoke-style highlighting::
 
 from __future__ import annotations
 
+import contextlib
 import re
 from typing import Any
 
@@ -53,10 +54,8 @@ def parse(text: str, offset_ms: float = 0.0) -> list[dict[str, Any]]:
         meta = _META.match(stripped)
         if meta:
             if meta.group(1).lower() == "offset":
-                try:
+                with contextlib.suppress(ValueError):
                     offset = -float(meta.group(2).strip()) / 1000.0
-                except ValueError:
-                    pass
             continue
 
         stamps = _LINE_TS.findall(stripped)

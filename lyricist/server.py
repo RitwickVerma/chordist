@@ -8,9 +8,13 @@ so a popup opening and closing twice cannot cause a double scrape.
 
 from __future__ import annotations
 
+import contextlib
+import ipaddress
 import json
 import logging
 import threading
+import time
+from collections.abc import Callable, Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -121,6 +125,32 @@ def romanise_lyrics(lyrics: dict[str, Any]) -> dict[str, Any]:
     return romanised
 
 
+class KeyedLocks:
+    """One lock per key, forgotten as soon as nobody holds or awaits it.
+
+    The service used to keep a lock for every song ever played; this keeps only
+    the ones in use.
+    """
+
+    def __init__(self) -> None:
+        self._guard = threading.Lock()
+        self._locks: dict[tuple[str, ...], list[Any]] = {}
+
+    @contextlib.contextmanager
+    def hold(self, *key: str) -> Iterator[None]:
+        with self._guard:
+            entry = self._locks.setdefault(key, [threading.Lock(), 0])
+            entry[1] += 1
+        try:
+            with entry[0]:
+                yield
+        finally:
+            with self._guard:
+                entry[1] -= 1
+                if entry[1] == 0:
+                    self._locks.pop(key, None)
+
+
 class Service:
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -128,12 +158,8 @@ class Service:
         self.lyrics = LyricsProvider(config, self.throttle)
         self.chords = ChordProvider(config, self.throttle)
         self.prefs = SongPrefs()
-        self._locks: dict[tuple[str, ...], threading.Lock] = {}
-        self._guard = threading.Lock()
-
-    def _lock(self, *key: str) -> threading.Lock:
-        with self._guard:
-            return self._locks.setdefault(tuple(key), threading.Lock())
+        self.started = time.time()
+        self._locks = KeyedLocks()
 
     def health(self) -> dict[str, Any]:
         return {
@@ -144,6 +170,7 @@ class Service:
             "ug_enabled": self.config.get("ug_enabled"),
             "contact_configured": bool(self.config.get("contact")),
             "local_charts": len(self.chords.list_local()),
+            "uptime_seconds": round(time.time() - self.started),
         }
 
     def _prepare_lyrics(
@@ -163,7 +190,7 @@ class Service:
         which song is playing.  A hand-picked lyrics id or chord url already
         names the version, so the song underneath it is not second-guessed.
         """
-        with self._lock("song", artist, title, album, str(lyrics_id or ""), str(chord_url or "")):
+        with self._locks.hold("song", artist, title, album, str(lyrics_id or ""), str(chord_url or "")):
             if lyrics_id or chord_url:
                 canonical: dict[str, Any] | None = None
             else:
@@ -301,15 +328,66 @@ class Service:
         }
 
 
+# Settings the widget or a script may change over HTTP. Anything that decides
+# which program runs (songrec_path), where the service listens (host, port) or
+# where it writes is deliberately absent: those are edited in config.json.
+MUTABLE_CONFIG = frozenset(
+    {
+        "contact",
+        "chords_sources",
+        "ug_enabled",
+        "romanise",
+        "fingerprint_enabled",
+        "fingerprint_seconds",
+        "log_level",
+        "min_request_interval",
+        "negative_ttl_seconds",
+        "request_timeout",
+    }
+)
+
+MAX_BODY = 1024 * 1024
+_LOOPBACK_NAMES = {"localhost", "127.0.0.1", "::1"}
+
+
+class RequestError(Exception):
+    """A request the service refuses, with the status to answer."""
+
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+def _hostname(value: str) -> str:
+    """The host part of a ``Host`` header or an origin, without port or brackets."""
+    value = value.strip().lower()
+    if value.startswith("["):
+        return value[1:].split("]", 1)[0]
+    return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+
+
+def _is_loopback(host: str) -> bool:
+    if host in _LOOPBACK_NAMES:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"lyricistd/{__version__}"
     protocol_version = "HTTP/1.1"
 
     # Silence the default per-request stderr logging; we log our own way.
-    def log_message(self, fmt: str, *args: Any) -> None:  # noqa: A003
-        log.debug("%s - %s", self.address_string(), fmt % args)
+    def log_message(self, format: str, *args: Any) -> None:
+        log.debug("%s - %s", self.address_string(), format % args)
 
     # ------------------------------------------------------------ helpers
+
+    @property
+    def service(self) -> Service:
+        return self.server.service  # type: ignore[attr-defined]
 
     def _send(self, payload: Any, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -317,167 +395,171 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
-        # The widget runs from a file:// QML context, so be permissive here.
-        # This service only ever listens on loopback.
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        # No CORS headers, on purpose. The widget's XMLHttpRequest does not need
+        # them, and without them a web page in the browser can neither read an
+        # answer from this loopback service nor pass a preflight to change it.
         self.end_headers()
         if self.command != "HEAD":
-            try:
-                self.wfile.write(body)
-            except (BrokenPipeError, ConnectionResetError):
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
                 # The widget drops the connection whenever it refetches or its
                 # popup closes; there is nobody left to receive this.
-                pass
+                self.wfile.write(body)
 
     def _query(self) -> dict[str, str]:
-        parsed = urlparse(self.path)
-        return {key: values[0] for key, values in parse_qs(parsed.query).items()}
+        return {key: values[0] for key, values in parse_qs(urlparse(self.path).query).items()}
+
+    def _guard(self, writing: bool) -> None:
+        """Refuse requests that did not come from this machine's own software.
+
+        A page open in the browser can aim ``fetch()`` at 127.0.0.1, and DNS
+        rebinding can make a hostile name resolve there. Both announce
+        themselves: a foreign ``Host`` or an ``Origin`` that is not loopback.
+        """
+        configured = str(self.service.config.get("host") or "127.0.0.1")
+        host = self.headers.get("Host")
+        if _is_loopback(_hostname(configured)) and host and not _is_loopback(_hostname(host)):
+            raise RequestError(403, "unexpected Host header")
+        origin = self.headers.get("Origin")
+        if origin and origin != "null":
+            parts = urlparse(origin)
+            if parts.scheme in ("http", "https") and not _is_loopback((parts.hostname or "").lower()):
+                raise RequestError(403, "cross-origin requests are not allowed")
+        if writing and not (self.headers.get("Content-Type") or "").lower().startswith("application/json"):
+            # JSON-typed requests cannot be sent cross-site without a preflight.
+            raise RequestError(415, "send application/json")
 
     def _body(self) -> dict[str, Any]:
-        length = int(self.headers.get("Content-Length") or 0)
-        if not length:
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise RequestError(400, "bad Content-Length") from None
+        if length > MAX_BODY:
+            raise RequestError(413, "body too large")
+        if length <= 0:
             return {}
         try:
-            return json.loads(self.rfile.read(length).decode("utf-8"))
+            data = json.loads(self.rfile.read(length).decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
-            return {}
+            raise RequestError(400, "body is not valid JSON") from None
+        return data if isinstance(data, dict) else {}
 
-    @property
-    def service(self) -> Service:
-        return self.server.service  # type: ignore[attr-defined]
-
-    # -------------------------------------------------------------- verbs
-
-    def do_OPTIONS(self) -> None:  # noqa: N802
-        self._send({"ok": True})
-
-    def do_HEAD(self) -> None:  # noqa: N802
-        self.do_GET()
-
-    def do_GET(self) -> None:  # noqa: N802
+    def _handle(self, routes: dict[str, Callable[[dict[str, str]], Any]], writing: bool = False) -> None:
         path = urlparse(self.path).path.rstrip("/") or "/"
-        query = self._query()
-
         try:
-            if path in ("/", "/api"):
-                self._send(self.service.health())
-            elif path == "/api/health":
-                self._send(self.service.health())
-            elif path == "/api/config":
-                self._send(self.service.config.as_dict())
-            elif path == "/api/song":
-                self._send(
-                    self.service.song(
-                        query.get("artist", ""),
-                        query.get("title", ""),
-                        query.get("album", ""),
-                        _as_float(query.get("duration")),
-                        query.get("romanise"),
-                        query.get("lyrics_id"),
-                        query.get("chord_url"),
-                    )
-                )
-            elif path == "/api/lyrics":
-                self._send(
-                    self.service.get_lyrics(
-                        query.get("artist", ""),
-                        query.get("title", ""),
-                        query.get("album", ""),
-                        _as_float(query.get("duration")),
-                        query.get("romanise"),
-                        query.get("lyrics_id"),
-                    )
-                )
-            elif path == "/api/chords":
-                self._send(
-                    self.service.chords.lookup(
-                        query.get("artist", ""),
-                        query.get("title", ""),
-                        _as_float(query.get("duration")),
-                        query.get("chord_url"),
-                    )
-                )
-            elif path == "/api/versions":
-                self._send(
-                    self.service.versions(
-                        query.get("artist", ""),
-                        query.get("title", ""),
-                        query.get("album", ""),
-                        _as_float(query.get("duration")),
-                    )
-                )
-            elif path == "/api/prefs":
-                self._send(
-                    self.service.get_prefs(query.get("artist", ""), query.get("title", ""))
-                )
-            elif path == "/api/shapes":
-                names = [n for n in query.get("names", "").split(",") if n.strip()]
-                self._send({
-                    "shapes": shapes.shapes_for(names),
-                    "variations": shapes.variants_for_names(names),
-                })
-            elif path == "/api/local":
-                self._send({"items": self.service.chords.list_local()})
-            else:
+            self._guard(writing)
+            route = routes.get(path)
+            if route is None:
                 self._send({"error": "not found", "path": path}, status=404)
+                return
+            self._send(route(self._query()))
+        except RequestError as exc:
+            self._send({"error": str(exc)}, status=exc.status)
         except (BrokenPipeError, ConnectionResetError):
             # A client that goes away mid-request is normal here: the widget
             # refetches on every track change and its popup closes freely.
-            log.debug("GET %s: client disconnected", path)
-        except Exception as exc:  # noqa: BLE001 - never take the service down
-            log.exception("GET %s failed", path)
+            log.debug("%s %s: client disconnected", self.command, path)
+        except Exception as exc:
+            log.exception("%s %s failed", self.command, path)
             self._send({"error": str(exc)}, status=500)
 
-    def do_POST(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path.rstrip("/")
-        body = self._body()
-        try:
-            if path == "/api/paste":
-                self._send(
-                    self.service.paste(
-                        body.get("artist", ""),
-                        body.get("title", ""),
-                        body.get("text", ""),
-                        body.get("format", "auto"),
-                    )
-                )
-            elif path == "/api/config":
-                for key, value in body.items():
-                    self.service.config[key] = value
-                self.service.config.save()
-                self._send(self.service.config.as_dict())
-            elif path == "/api/prefs":
-                self._send(
-                    self.service.set_prefs(
-                        body.get("artist", ""),
-                        body.get("title", ""),
-                        body,
-                    )
-                )
-            else:
-                self._send({"error": "not found", "path": path}, status=404)
-        except (BrokenPipeError, ConnectionResetError):
-            log.debug("POST %s: client disconnected", path)
-        except Exception as exc:  # noqa: BLE001
-            log.exception("POST %s failed", path)
-            self._send({"error": str(exc)}, status=500)
+    # -------------------------------------------------------------- routes
 
-    def do_DELETE(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path.rstrip("/")
-        query = self._query()
+    def _get_routes(self) -> dict[str, Callable[[dict[str, str]], Any]]:
+        svc = self.service
+
+        def song(q: dict[str, str]) -> Any:
+            return svc.song(
+                q.get("artist", ""), q.get("title", ""), q.get("album", ""),
+                _as_float(q.get("duration")), q.get("romanise"), q.get("lyrics_id"), q.get("chord_url"),
+            )
+
+        def lyrics(q: dict[str, str]) -> Any:
+            return svc.get_lyrics(
+                q.get("artist", ""), q.get("title", ""), q.get("album", ""),
+                _as_float(q.get("duration")), q.get("romanise"), q.get("lyrics_id"),
+            )
+
+        def chords(q: dict[str, str]) -> Any:
+            return svc.chords.lookup(
+                q.get("artist", ""), q.get("title", ""), _as_float(q.get("duration")), q.get("chord_url")
+            )
+
+        def versions(q: dict[str, str]) -> Any:
+            return svc.versions(
+                q.get("artist", ""), q.get("title", ""), q.get("album", ""), _as_float(q.get("duration"))
+            )
+
+        def shape_list(q: dict[str, str]) -> Any:
+            names = [n.strip() for n in q.get("names", "").split(",") if n.strip()][:64]
+            return {"shapes": shapes.shapes_for(names), "variations": shapes.variants_for_names(names)}
+
+        return {
+            "/": lambda _q: svc.health(),
+            "/api": lambda _q: svc.health(),
+            "/api/health": lambda _q: svc.health(),
+            "/api/config": lambda _q: svc.config.as_dict(),
+            "/api/song": song,
+            "/api/lyrics": lyrics,
+            "/api/chords": chords,
+            "/api/versions": versions,
+            "/api/prefs": lambda q: svc.get_prefs(q.get("artist", ""), q.get("title", "")),
+            "/api/shapes": shape_list,
+            "/api/local": lambda _q: {"items": svc.chords.list_local()},
+        }
+
+    def _post_routes(self, body: dict[str, Any]) -> dict[str, Callable[[dict[str, str]], Any]]:
+        svc = self.service
+
+        def config(_q: dict[str, str]) -> Any:
+            unknown = sorted(set(body) - MUTABLE_CONFIG)
+            if unknown:
+                raise RequestError(403, f"not changeable over HTTP: {', '.join(unknown)}")
+            for key, value in body.items():
+                svc.config[key] = value
+            svc.config.save()
+            return svc.config.as_dict()
+
+        return {
+            "/api/paste": lambda _q: svc.paste(
+                str(body.get("artist", "")), str(body.get("title", "")),
+                str(body.get("text", "")), str(body.get("format", "auto")),
+            ),
+            "/api/config": config,
+            "/api/prefs": lambda _q: svc.set_prefs(
+                str(body.get("artist", "")), str(body.get("title", "")), body
+            ),
+        }
+
+    # -------------------------------------------------------------- verbs
+
+    def do_OPTIONS(self) -> None:
+        # Answered without CORS headers, so a browser's preflight fails.
+        self._send({"ok": True})
+
+    def do_HEAD(self) -> None:
+        self.do_GET()
+
+    def do_GET(self) -> None:
+        self._handle(self._get_routes())
+
+    def do_POST(self) -> None:
         try:
-            if path == "/api/local":
-                removed = self.service.chords.delete_local(query.get("artist", ""), query.get("title", ""))
-                self._send({"removed": removed})
-            else:
-                self._send({"error": "not found", "path": path}, status=404)
-        except (BrokenPipeError, ConnectionResetError):
-            log.debug("DELETE %s: client disconnected", path)
-        except Exception as exc:  # noqa: BLE001
-            log.exception("DELETE %s failed", path)
-            self._send({"error": str(exc)}, status=500)
+            self._guard(True)
+            body = self._body()
+        except RequestError as exc:
+            self._send({"error": str(exc)}, status=exc.status)
+            return
+        self._handle(self._post_routes(body), writing=True)
+
+    def do_DELETE(self) -> None:
+        svc = self.service
+        self._handle(
+            {
+                "/api/local": lambda q: {
+                    "removed": svc.chords.delete_local(q.get("artist", ""), q.get("title", ""))
+                }
+            }
+        )
 
 
 class Server(ThreadingHTTPServer):

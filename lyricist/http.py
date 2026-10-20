@@ -15,6 +15,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+MAX_BODY_BYTES = 8 * 1024 * 1024
+
 BROWSER_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
@@ -22,22 +24,28 @@ BROWSER_UA = (
 
 
 class Throttle:
-    """Serialises requests per host with a minimum gap between them."""
+    """Keeps a minimum gap between requests to the same host.
+
+    Each host has its own lock, so a slow Ultimate Guitar pacing delay never
+    holds up an LRCLIB request that could go out right now.
+    """
 
     def __init__(self, interval: float = 0.0) -> None:
         self.interval = interval
-        self._lock = threading.Lock()
+        self._guard = threading.Lock()
+        self._locks: dict[str, threading.Lock] = {}
         self._last: dict[str, float] = {}
 
     def wait(self, url: str) -> None:
         if self.interval <= 0:
             return
         host = urllib.parse.urlsplit(url).netloc
-        with self._lock:
-            now = time.monotonic()
+        with self._guard:
+            lock = self._locks.setdefault(host, threading.Lock())
+        with lock:
             previous = self._last.get(host)
             if previous is not None:
-                delay = self.interval - (now - previous)
+                delay = self.interval - (time.monotonic() - previous)
                 if delay > 0:
                     time.sleep(delay)
             self._last[host] = time.monotonic()
@@ -64,6 +72,8 @@ def fetch(
     Retries once on the transient failures that scraping runs into (502/503
     from a rate limiter, a dropped connection), with a short backoff.
     """
+    if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+        raise ValueError(f"refusing to fetch a non-http URL: {url!r}")
     request_headers = {
         "User-Agent": BROWSER_UA,
         "Accept": accept,
@@ -80,7 +90,7 @@ def fetch(
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 charset = response.headers.get_content_charset() or "utf-8"
-                return response.read().decode(charset, "replace")
+                return response.read(MAX_BODY_BYTES).decode(charset, "replace")
         except urllib.error.HTTPError as exc:
             last_error = HttpError(exc.code, url)
             if exc.code in (429, 500, 502, 503, 504) and attempt < retries:

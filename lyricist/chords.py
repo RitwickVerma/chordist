@@ -10,21 +10,42 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import re
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
-from . import chart, titles
+from . import chart, shapes, titles
 from .cache import DiskCache, key_for
 from .config import Config, chords_dir
-from .http import BROWSER_UA, HttpError, Throttle, fetch
+from .http import HttpError, Throttle, fetch
+
+log = logging.getLogger("lyricist.chords")
 
 UG_BASE = "https://www.ultimate-guitar.com"
+# Kinds of tab the widget can show. Chords are tried first; a song nobody has
+# charted in chords (an instrumental, a fingerpicked piece) falls back to Tabs.
+_PLAYABLE = ("Chords", "Tabs")
 UG_SEARCH = UG_BASE + "/search.php?search_type=title&value={query}"
 
 # Bump when the matching rules change so cached picks are re-resolved.
-MATCHER_VERSION = 4
+MATCHER_VERSION = 5
+
+
+def is_ug_url(url: Any) -> bool:
+    """Only Ultimate Guitar over https may be fetched on a caller's say-so.
+
+    A pinned tab arrives as a URL in a query string; without this check the
+    service would fetch whatever address it was handed (``file://``, a router's
+    admin page, a LAN host).
+    """
+    if not isinstance(url, str):
+        return False
+    parts = urlsplit(url.strip())
+    host = (parts.hostname or "").lower()
+    return parts.scheme == "https" and (host == "ultimate-guitar.com" or host.endswith(".ultimate-guitar.com"))
 
 
 def _cache_key(artist: str, title: str) -> str:
@@ -64,6 +85,71 @@ _TITLE_SEPARATORS = (
     "- ", "– ", "— ", "| ", "/ ",
     "-", "–", "—", "|",
 )
+
+
+def _strumming(tab_view: dict[str, Any]) -> list[dict[str, Any]]:
+    """Strumming patterns as UG stores them (``measures`` is UG's own code)."""
+    raw = tab_view.get("encode_strummings")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            raw = None
+    patterns = raw.get("patterns") if isinstance(raw, dict) else None
+    out: list[dict[str, Any]] = []
+    for pattern in patterns if isinstance(patterns, list) else []:
+        if not isinstance(pattern, dict):
+            continue
+        try:
+            bpm = int(pattern.get("bpm") or 0)
+            denominator = int(pattern.get("denuminator") or 0)
+        except (TypeError, ValueError):
+            continue
+        out.append(
+            {
+                "part": str(pattern.get("part") or ""),
+                "bpm": bpm or None,
+                "denominator": denominator or None,
+                "triplet": bool(pattern.get("is_triplet")),
+                "measures": pattern.get("measures") if isinstance(pattern.get("measures"), list) else [],
+            }
+        )
+    return out
+
+
+def _number(value: Any) -> int | float | None:
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def ug_meta(data: dict[str, Any], item: dict[str, Any]) -> dict[str, Any]:
+    """The guitarist-facing facts on a tab page: tuning, key, difficulty, stats.
+
+    ``data`` is the page's ``store.page.data``; ``item`` is the search result
+    that led here (it may be empty for a pinned tab, so every field falls back).
+    """
+    tab_view = data.get("tab_view") or {}
+    tab = data.get("tab") if isinstance(data.get("tab"), dict) else {}
+    meta = tab_view.get("meta") or {}
+    stats = tab_view.get("stats") or {}
+    wiki = tab_view.get("wiki_tab") or {}
+    tuning = meta.get("tuning") if isinstance(meta.get("tuning"), dict) else {}
+    notes = str(tuning.get("value") or "").split()
+    strumming = _strumming(tab_view)
+    return {
+        "tuning": {"name": str(tuning.get("name") or ""), "notes": notes},
+        "difficulty": str(meta.get("difficulty") or tab_view.get("ug_difficulty") or ""),
+        "tonality": str(meta.get("tonality") or tab.get("tonality_name") or item.get("tonality_name") or ""),
+        "type": str(tab.get("type") or item.get("type") or ""),
+        "version": tab.get("version") or item.get("version"),
+        "rating": _number(tab.get("rating") if tab.get("rating") is not None else item.get("rating")),
+        "votes": _number(tab.get("votes") if tab.get("votes") is not None else item.get("votes")),
+        "views": _number(stats.get("view_total")),
+        "favorites": _number(stats.get("favorites_count")),
+        "author": str(wiki.get("username") or ""),
+        "bpm": next((p["bpm"] for p in strumming if p.get("bpm")), None),
+        "strumming": strumming,
+        "simplified_available": bool(tab_view.get("is_simplify_available")),
+    }
 
 
 def _song_tail(title: str) -> str:
@@ -300,18 +386,30 @@ class ChordProvider:
             if results:
                 if not fallback:
                     fallback = results
-                if self._ug_pick_all(results, artist, title, guarded_only=True, album=album):
+                if self._ug_pick_all(
+                    results, artist, title, types=_PLAYABLE, guarded_only=True, album=album
+                ):
                     return results
         if not fallback and error is not None:
             raise error
         return fallback
 
-    def _ug_pick(self, results: list[dict[str, Any]], artist: str, title: str, album: str = "") -> dict[str, Any] | None:
-        scored = self._ug_pick_all(results, artist, title, guarded_only=True, album=album)
+    def _ug_pick(
+        self,
+        results: list[dict[str, Any]],
+        artist: str,
+        title: str,
+        album: str = "",
+        types: tuple[str, ...] = ("Chords",),
+    ) -> dict[str, Any] | None:
+        scored = self._ug_pick_all(results, artist, title, types=types, guarded_only=True, album=album)
         return scored[0][1] if scored and scored[0][0] > 0 else None
 
     def _ug_fetch(self, item: dict[str, Any]) -> dict[str, Any] | None:
         url = item["tab_url"]
+        if not is_ug_url(url):
+            log.warning("refusing to fetch a tab from %r", url)
+            return None
         page = fetch(
             url,
             throttle=self.throttle,
@@ -322,7 +420,8 @@ class ChordProvider:
         store = _store(page)
         if not store:
             return None
-        tab_view = store.get("store", {}).get("page", {}).get("data", {}).get("tab_view") or {}
+        data = store.get("store", {}).get("page", {}).get("data", {})
+        tab_view = data.get("tab_view") or {}
         content = (tab_view.get("wiki_tab") or {}).get("content")
         if not content:
             return None
@@ -342,9 +441,21 @@ class ChordProvider:
             result["capo"] = int(meta.get("capo") or 0)
         except (TypeError, ValueError):
             result["capo"] = 0
-        result["rating"] = item.get("rating")
-        result["votes"] = item.get("votes")
-        result["version"] = item.get("version")
+        info = ug_meta(data, item)
+        result["meta"] = info
+        result["rating"] = info["rating"]
+        result["votes"] = info["votes"]
+        result["version"] = info["version"]
+        # UG's own fingerings for exactly the chords on this page. They beat the
+        # generic shape tables (A7sus4, slash chords, odd voicings), so they are
+        # passed through for the widget to prefer.
+        applicature: dict[str, list[dict[str, Any]]] = {}
+        raw = tab_view.get("applicature")
+        for name, entries in (raw.items() if isinstance(raw, dict) else []):
+            voicings = shapes.from_applicature(str(name), entries)
+            if voicings:
+                applicature[str(name)] = voicings
+        result["applicature"] = applicature
         return result
 
     # ----------------------------------------------------------- candidates
@@ -412,6 +523,10 @@ class ChordProvider:
             if local and local.get("sections"):
                 return local
 
+        if chord_url and not is_ug_url(chord_url):
+            log.warning("ignoring pinned tab with a non-Ultimate-Guitar address: %r", chord_url)
+            chord_url = None
+
         # A tab the user picked by hand beats anything we would choose ourselves.
         if chord_url:
             pinned_key = _pinned_key(chord_url)
@@ -438,9 +553,9 @@ class ChordProvider:
         if "ultimate-guitar" in sources and self.config.get("ug_enabled", True):
             try:
                 results = self._ug_results(artist, title, album)
-                picked = self._ug_pick(results, artist, title, album)
-                if picked:
-                    result = self._ug_fetch(picked)
+                for kinds in (("Chords",), ("Tabs",)):
+                    picked = self._ug_pick(results, artist, title, album, types=kinds)
+                    result = self._ug_fetch(picked) if picked else None
                     if result and result.get("sections"):
                         self.cache.set(key, result)
                         return result
@@ -449,6 +564,7 @@ class ChordProvider:
                 self.cache.set(key, {"source": "none", "sections": [], "error": str(exc)}, ttl=900)
                 return {"source": "none", "sections": [], "error": str(exc), "retry_in": 900}
             except Exception as exc:  # never let a scrape break the popup
+                log.warning("chord lookup for %s - %s failed: %s", artist, title, exc)
                 return {"source": "none", "sections": [], "error": str(exc)}
 
         self.cache.set(key, {"source": "none", "sections": []}, ttl=self.negative_ttl)

@@ -9,14 +9,17 @@ lyrics.
 
 from __future__ import annotations
 
+import logging
 import re
 import urllib.parse
 from typing import Any
 
 from . import lrc
 from .cache import DiskCache, key_for
-from .config import Config
+from .config import Config, user_agent
 from .http import Throttle, fetch_json
+
+log = logging.getLogger("lyricist.lyrics")
 
 BASE = "https://lrclib.net/api"
 
@@ -217,7 +220,7 @@ class LyricsProvider:
         if album:
             params["album_name"] = album
         if duration:
-            params["duration"] = str(int(round(duration)))
+            params["duration"] = str(round(duration))
         try:
             entry = fetch_json(
                 f"{BASE}/get?{urllib.parse.urlencode(params)}",
@@ -228,8 +231,8 @@ class LyricsProvider:
             )
             if isinstance(entry, dict) and entry.get("trackName"):
                 return _shape(entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("lrclib exact match for %s - %s: %s", artist, title, exc)
 
         # 2. Search, then pick the best-scoring candidate ourselves. Streaming
         #    metadata often carries the *channel* as the artist (a YouTube
@@ -294,7 +297,7 @@ class LyricsProvider:
     # ------------------------------------------------------------- versions
 
     def _headers(self) -> dict[str, str]:
-        return {"User-Agent": f"lyricist/1.0.0 (contact: {self.contact or 'none'})"}
+        return {"User-Agent": user_agent(self.contact)}
 
     def by_id(self, lyrics_id: Any) -> dict[str, Any] | None:
         """One specific LRCLIB entry, for when the automatic match picked wrong."""
