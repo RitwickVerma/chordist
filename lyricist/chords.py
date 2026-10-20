@@ -16,7 +16,6 @@ import html
 import json
 import logging
 import re
-import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus, urlsplit
@@ -202,7 +201,7 @@ class ChordProvider:
         parsed = chart.parse(text, fmt=fmt, title=title, artist=artist)
         stem = f"{slug(artist)}-{slug(title)}" if artist else slug(title)
         if not stem:
-            stem = f"untitled-{int(time.time())}"
+            raise ValueError("a chart needs the title of the song it is for")
 
         self.directory.mkdir(parents=True, exist_ok=True)
         path = self.directory / f"{stem}.chordpro"

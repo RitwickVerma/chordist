@@ -221,3 +221,9 @@ def test_a_pinned_lyrics_entry_still_searches_charts_by_the_real_song(service):
 def test_with_both_pinned_the_song_is_not_second_guessed(service):
     service.song("Some Channel", "Junk Title", lyrics_id="42", chord_url=UG)
     assert service.rec.lyrics_calls == [("Some Channel", "Junk Title")]
+
+
+def test_a_chart_without_a_song_is_refused_not_saved_as_untitled(api):
+    status, body, _ = api("POST", "/api/paste", {"artist": "X", "title": "", "text": "Am F\nhello"})
+    assert status == 400 and "title" in body["error"]
+    assert api("GET", "/api/local")[1]["items"] == []

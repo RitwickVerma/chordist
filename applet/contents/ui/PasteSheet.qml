@@ -56,7 +56,7 @@ ColumnLayout {
         PlasmaComponents3.Button {
             text: /^https?:\/\/\S+$/.test(input.text.trim()) ? i18n("Use this tab") : i18n("Save for this track")
             icon.name: "document-save"
-            enabled: input.text.trim().length > 0
+            enabled: input.text.trim().length > 0 && !!sheet.applet && sheet.applet.ready
             onClicked: {
                 if (sheet.applet) sheet.applet.submitPaste(input.text)
                 input.text = ""

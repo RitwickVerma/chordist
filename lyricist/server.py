@@ -569,11 +569,16 @@ class Handler(BaseHTTPRequestHandler):
             svc.config.save()
             return svc.config.as_dict()
 
-        return {
-            "/api/paste": lambda _q: svc.paste(
+        def paste(_q: dict[str, str]) -> Any:
+            if not str(body.get("title", "")).strip():
+                raise RequestError(400, "a chart needs the title of the song it is for")
+            return svc.paste(
                 str(body.get("artist", "")), str(body.get("title", "")),
                 str(body.get("text", "")), str(body.get("format", "auto")),
-            ),
+            )
+
+        return {
+            "/api/paste": paste,
             "/api/config": config,
             "/api/prefs": lambda _q: svc.set_prefs(
                 str(body.get("artist", "")), str(body.get("title", "")), body

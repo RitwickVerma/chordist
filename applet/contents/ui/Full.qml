@@ -51,6 +51,7 @@ Item {
     readonly property string message: {
         var value = applet ? applet.statusMessage : ""
         if (value === "offline") return i18n("The Chordist service is not running.")
+        if (value === "notrack") return i18n("Play a song first, then paste its chart.")
         if (value === "badaddress") return i18n("Only Ultimate Guitar tab addresses can be used.")
         if (value === "nothing") return ""
         if (value.length > 0) return value

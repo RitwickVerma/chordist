@@ -416,4 +416,15 @@ TestCase {
         compare(model._requestId, before)
         verify(!model._shapeFetching, "no request was made")
     }
+
+    function test_nothing_can_be_saved_when_nothing_is_playing() {
+        model.track = ""
+        model.artist = ""
+        verify(!model.ready)
+        model.statusMessage = ""
+        model.submitPaste("Am F\nhello there")
+        compare(model.statusMessage, "notrack")
+        model.artist = "Artist"
+        model.track = "Song"
+    }
 }

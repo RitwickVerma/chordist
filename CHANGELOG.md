@@ -59,6 +59,8 @@ A rebuild of the widget and a hardening of the service. Settings, saved charts a
   - The server kept a connection alive after refusing a request without reading its body, so that body was parsed
     as the next request. A glide animation fought the user's scrolling. `Config.save` wrote every default into
     `config.json`. Concurrent cache writers shared a temp file.
+  - With nothing playing, pasting a chart saved it as `untitled-<time>` with no song; the widget and the service
+    now refuse.
   - Aligning a long chart took about a second per lookup; it is 15x faster, with identical results.
 
 ### Security

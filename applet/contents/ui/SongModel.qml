@@ -464,6 +464,9 @@ QtObject {
     function submitPaste(text) {
         var value = (text || "").trim()
         if (!value) return
+        // A chart belongs to a song: with nothing playing it would be saved under
+        // no name at all.
+        if (!ready) { statusMessage = "notrack"; return }
         // A bare address is a request to use that tab, and only Ultimate Guitar's
         // can be used: anything else is not a chart, so it is not saved as one.
         if (/^https?:\/\/\S+$/.test(value)) {
