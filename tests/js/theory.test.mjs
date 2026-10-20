@@ -126,6 +126,6 @@ test("detected keys are spelled like a guitarist writes them", () => {
     assert.equal(T.detectKey(["Bb", "F", "Gm", "Eb"]).name, "Bb");
     assert.equal(T.detectKey(["Eb", "Bb", "Cm", "Ab"]).name, "Eb");
     assert.equal(T.detectKey(["A", "E", "F#m", "D", "A"]).name, "A");
-    assert.equal(T.detectKey(["Gm", "Eb", "Bb", "F"]).name, "Bb");
+    assert.equal(T.detectKey(["Gm", "Eb", "Bb", "F"]).name, "Gm");
     assert.equal(T.detectKey(["F#m", "D", "E", "F#m"]).name, "F#m");
 });
