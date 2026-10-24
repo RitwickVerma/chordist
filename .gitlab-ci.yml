@@ -6,7 +6,12 @@
 # so a red pipeline reproduces here. The screenshot harness (`make shots`) and
 # the real-shell check in docs/testing.md need KDE libraries and stay local.
 
-image: archlinux:latest
+# Prebuilt on the runner (ci/Dockerfile) so jobs do not run pacman -Syu each. Override with
+# CHORDIFY_CI_IMAGE=archlinux:latest if the image is ever missing; the before_script then installs.
+variables:
+  CHORDIFY_CI_IMAGE: localhost/chordify-ci:latest
+
+image: $CHORDIFY_CI_IMAGE
 
 stages: [check, test]
 
@@ -18,7 +23,8 @@ workflow:
 default:
   before_script:
     # ORDER MATTERS: pacman installs git, so it must run before the first git call.
-    - pacman -Syu --noconfirm --needed --quiet git make reuse python uv nodejs shellcheck qt6-declarative
+    # Install only if this is not the CI image (override or fallback) or it is stale (ci/packages.txt changed).
+    - '[ "$(cat /etc/ci-packages 2>/dev/null)" = "$(cat ci/packages.txt)" ] || pacman -Syu --noconfirm --needed --quiet $(cat ci/packages.txt)'
     - git config --global --add safe.directory '*'
 
 reuse:
