@@ -1,0 +1,1 @@
+git make reuse python uv nodejs shellcheck qt6-declarative
