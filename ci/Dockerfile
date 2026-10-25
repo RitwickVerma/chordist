@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+# SPDX-License-Identifier: MIT
 # CI image for chordify's GitLab jobs: the packages every job needs, installed once.
 #
 # Built on the runner host (CT115) by ci-image-build.service from a fresh clone of the default
