@@ -1,7 +1,8 @@
 # Contributing
 
-Issues and merge requests are welcome on [GitLab](https://gitlab.com/ritwick7/chordify). Security problems go
-through [SECURITY.md](SECURITY.md), not public issues.
+Issues and merge requests are welcome on [GitLab](https://gitlab.com/ritwick7/chordist), where development happens. The
+[GitHub repository](https://github.com/RitwickVerma/chordist) is a mirror: issues filed there are read too, but merge requests go to GitLab.
+Security problems go through [SECURITY.md](SECURITY.md), not public issues.
 
 The bar every change must clear: **run it, do not just read it.**
 

@@ -14,8 +14,8 @@
         "License": "MIT",
         "Name": "Chordist",
         "Version": "2.0.0",
-        "Website": "https://gitlab.com/ritwick7/chordify",
-        "BugReportUrl": "https://gitlab.com/ritwick7/chordify/-/issues"
+        "Website": "https://gitlab.com/ritwick7/chordist",
+        "BugReportUrl": "https://gitlab.com/ritwick7/chordist/-/issues"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }

@@ -118,7 +118,7 @@ coverage: ## Python test coverage, with the lines no test reaches
 	$(UV) run pytest --cov=chordist --cov-report=term-missing:skip-covered
 
 test-js: ## node: the widget's pure JS (theory, schedule, tab layout)
-	node --test tests/js
+	node --test tests/js/*.test.mjs
 
 test-qml: ## qmltestrunner: the song model's logic
 	QT_QPA_PLATFORM=offscreen $(QMLTEST) -input tests/qml/tst_songmodel.qml

@@ -7,11 +7,11 @@
 # the real-shell check in docs/testing.md need KDE libraries and stay local.
 
 # Prebuilt on the runner (ci/Dockerfile) so jobs do not run pacman -Syu each. Override with
-# CHORDIFY_CI_IMAGE=archlinux:latest if the image is ever missing; the before_script then installs.
+# CHORDIST_CI_IMAGE=archlinux:latest if the image is ever missing; the before_script then installs.
 variables:
-  CHORDIFY_CI_IMAGE: localhost/chordify-ci:latest
+  CHORDIST_CI_IMAGE: localhost/chordist-ci:latest
 
-image: $CHORDIFY_CI_IMAGE
+image: $CHORDIST_CI_IMAGE
 
 stages: [check, test]
 

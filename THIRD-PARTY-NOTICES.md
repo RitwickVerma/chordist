@@ -20,6 +20,6 @@ repository's code, and nothing of them is copied into it.
 
 ## Trademarks
 
-Plasma and KDE are trademarks of KDE e.V. Ultimate Guitar is a trademark of its owner, Shazam is a trademark of Apple
-Inc., and Chordify is a trademark of Chordify B.V. They are named here only to say what this software works with.
+Plasma and KDE are trademarks of KDE e.V. Ultimate Guitar is a trademark of its owner and Shazam is a trademark of Apple
+Inc. They are named here only to say what this software works with.
 Chordist is not affiliated with, endorsed by, or sponsored by any of them.
