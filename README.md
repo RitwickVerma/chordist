@@ -6,7 +6,7 @@
 The chords, tab, lyrics and fingerings for whatever you are playing, in step with the song.</p>
 
 <p align="center">
-<a href="https://gitlab.com/ritwick7/chordify/-/pipelines"><img alt="pipeline" src="https://gitlab.com/ritwick7/chordify/badges/main/pipeline.svg"></a>
+<a href="https://gitlab.com/ritwick7/chordist/-/pipelines"><img alt="pipeline" src="https://gitlab.com/ritwick7/chordist/badges/main/pipeline.svg"></a>
 <a href="LICENSE"><img alt="licence: MIT" src="https://img.shields.io/badge/licence-MIT-blue"></a>
 <img alt="REUSE compliant" src="https://img.shields.io/badge/REUSE-compliant-3aa655">
 <img alt="Plasma 6" src="https://img.shields.io/badge/KDE%20Plasma-6-1d99f3">
@@ -52,7 +52,7 @@ Needs KDE Plasma 6 and Python 3.12+.
 **Arch Linux**
 
 ```sh
-git clone https://gitlab.com/ritwick7/chordify.git && cd chordify
+git clone https://gitlab.com/ritwick7/chordist.git && cd chordist
 make pkgbuild && cd build/pkg && makepkg -si
 systemctl --user enable --now chordistd
 systemctl --user restart plasma-plasmashell
@@ -61,7 +61,7 @@ systemctl --user restart plasma-plasmashell
 **Any distribution, from the source tree** (installs into `~/.local`)
 
 ```sh
-git clone https://gitlab.com/ritwick7/chordify.git && cd chordify
+git clone https://gitlab.com/ritwick7/chordist.git && cd chordist
 make deps        # what is missing, and the pacman line to fix it
 make install     # widget + service + systemd user unit; starts the service
 systemctl --user restart plasma-plasmashell     # loads the widget
@@ -129,7 +129,7 @@ Nothing else leaves the machine; the service listens on loopback only and refuse
 ## Legal
 
 Chordist is an independent, unofficial project. It is not affiliated with, endorsed by or sponsored by Ultimate
-Guitar, Chordify, Shazam/Apple, LRCLIB or KDE; those names belong to their owners
+Guitar, Shazam/Apple, LRCLIB or KDE; those names belong to their owners
 ([THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)).
 
 Charts and tabs belong to their authors and to the sites that host them. Chordist reads Ultimate Guitar's public
@@ -167,8 +167,9 @@ aligning a chart to timed lyrics, and the music theory behind the capo calculato
 
 ## Contributing
 
-Issues and merge requests are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) has the bar a change has to clear (short
-version: run it, do not just read it) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) the ground rules.
+Development happens on [GitLab](https://gitlab.com/ritwick7/chordist); [GitHub](https://github.com/RitwickVerma/chordist) is a mirror. Issues are welcome on either, merge
+requests on GitLab. [CONTRIBUTING.md](CONTRIBUTING.md) has the bar a change has to clear (short version: run it,
+do not just read it) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) the ground rules.
 
 ```sh
 make test        # pytest, node --test, qmltestrunner

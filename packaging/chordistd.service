@@ -4,7 +4,7 @@
 
 [Unit]
 Description=Chordist service (lyrics, chords and tabs for the song you are playing)
-Documentation=https://gitlab.com/ritwick7/chordify
+Documentation=https://gitlab.com/ritwick7/chordist
 
 [Service]
 Type=simple

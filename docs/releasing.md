@@ -23,7 +23,8 @@ A release is a version bump, a changelog entry, a green tree and a tag. Nothing 
    make dist pkgbuild      # dist/chordist-X.Y.Z.tar.gz, build/pkg/ with the PKGBUILD
    ```
 
-   Push the tag, and attach the tarball to the GitLab release with the changelog section as its notes.
+   Push the tag, and attach the tarball to the GitLab release with the changelog section as its notes. GitLab
+   pushes the tag on to the GitHub mirror; give it a GitHub release with the same notes and tarball.
 
 The version follows [Semantic Versioning](https://semver.org): a change to the HTTP API's shape, to the config keys
 or to the on-disk layout (`~/.config|.local/share|.cache/chordist`) is a major version, and ships with a migration.

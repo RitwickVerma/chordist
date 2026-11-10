@@ -3,7 +3,7 @@
 All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.0.0] — 2026-10-19
+## [2.0.0] — 2026-11-10
 
 A rebuild of the widget and a hardening of the service. Settings, saved charts and per-song memory carry over.
 
@@ -27,6 +27,8 @@ A rebuild of the widget and a hardening of the service. Settings, saved charts a
   fingerprinting, identity resolution and lyrics search all have tests now.
 
 ### Changed
+- The project lives at [gitlab.com/ritwick7/chordist](https://gitlab.com/ritwick7/chordist), mirrored to
+  [GitHub](https://github.com/RitwickVerma/chordist). It was `…/chordify`, a name that belongs to someone else; the old address redirects.
 - **Renamed: everything is Chordist now** (it was `lyricist`): widget `com.ritwick.chordist`, service `chordistd`,
   CLI and package `chordist`, state in `~/.config|.local/share|.cache/chordist`. `make install` migrates the service
   and your data; `make migrate-panel` moves the panel entry, keeping its position and settings.
@@ -38,6 +40,7 @@ A rebuild of the widget and a hardening of the service. Settings, saved charts a
 - The systemd unit is sandboxed.
 
 ### Fixed
+- `make test` failed on Node 22 LTS, which reads `node --test <directory>` as a file to run.
 - A slow reply for the previous track could overwrite the current track's chart.
 - The "other versions" list survived a track change and showed the previous song's.
 - Resuming after a pause made the highlight leap ahead by the length of the pause.
