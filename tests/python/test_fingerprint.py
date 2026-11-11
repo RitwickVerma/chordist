@@ -118,20 +118,43 @@ def test_a_program_that_is_not_there_is_reported():
         fingerprint._run(["/nonexistent/program"], 1)
 
 
+def _gone(pid: int) -> bool:
+    """Whether ``pid`` no longer runs. A zombie counts as gone: it was killed and only waits to be reaped, and
+    when the test process is PID 1 (a container whose shell exec'd pytest) the orphan is reparented to the test
+    process itself, which never reaps it, so it stays a zombie for as long as pytest runs."""
+    import os
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    try:
+        os.waitpid(pid, os.WNOHANG)          # ours to reap only when we are its reaper; harmless otherwise
+    except ChildProcessError:
+        pass
+    try:
+        with open(f"/proc/{pid}/stat") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] == "Z"
+    except (FileNotFoundError, ProcessLookupError):
+        return True
+
+
 def test_a_program_that_hangs_is_killed_with_everything_it_started(tmp_path):
     """timeout(1) -> pw-record: killing only the direct child would leave the recorder running."""
     import os
     import time
 
     pidfile = tmp_path / "grandchild.pid"
-    script = f"sleep 60 & echo $! > {pidfile}; wait"
+    # The grandchild does not hold the output pipes: one that did would keep communicate() reading until it
+    # exited by itself, and the test would pass whether or not anything killed it.
+    script = f"sleep 60 >/dev/null 2>&1 </dev/null & echo $! > {pidfile}; wait"
+    started = time.monotonic()
     with pytest.raises(fingerprint.FingerprintError, match="timed out"):
         fingerprint._run(["sh", "-c", script], 1)
+    assert time.monotonic() - started < 10, "the timeout did not cut the program short"
     pid = int(pidfile.read_text())
     for _ in range(50):
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
+        if _gone(pid):
             break
         time.sleep(0.1)
     else:
