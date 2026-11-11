@@ -29,6 +29,9 @@ for path in "${want[@]}"; do
     [ -e "$path" ] || { echo "make install did not create $path" >&2; exit 1; }
 done
 [ -L "$home/.local/bin/chordist" ]
+# The unit runs the launcher where it was installed (the prefix is rewritten into it at install time).
+grep -qxF "ExecStart=$home/.local/bin/chordistd serve" "$home/.config/systemd/user/chordistd.service" \
+    || { echo "the installed unit does not run $home/.local/bin/chordistd" >&2; exit 1; }
 
 # The installed launcher, from somewhere that is not the checkout, finds the library under its own prefix.
 cd "$home"

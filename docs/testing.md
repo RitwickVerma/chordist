@@ -7,17 +7,20 @@ Four layers, from cheapest to most real. `make test` runs the first three; the f
 | Python | `make test-python` | chart/tab parsing, shapes, providers against faked Ultimate Guitar pages, the HTTP server and every one of its guards, cache, prefs, throttle. The suite blocks the network, so a test that reaches for it fails. |
 | JS | `make test-js` | `theory.js`, `schedule.js`, `tab.js`, `util.js`, loaded exactly as the widget loads them (the `.pragma library` line is stripped) |
 | QML model | `make test-qml` | `SongModel.qml`: active row and lag, now/next chord, capo and key advice, voicing choice, loop, position extrapolation across a pause, pinning, clamping. Qt 6's `qmltestrunner`, offscreen, a plain object standing in for the MPRIS player. |
+| QML components | `make test-qml` | every `contents/ui/*.qml`, `ui/config/*.qml` and `config/config.qml` created on the Qt and KDE stack installed (`tests/qml/components.sh`, `tst_components.qml`): fails on a component that does not load (a property the installed Kirigami lacks) and on any warning the load prints. |
 | Real shell | below | `main.qml`, `Compact.qml`, the config page, Mpris wiring |
 
-CI runs the same `make` targets (the `qml` job installs Plasma and Kirigami first, so qmllint resolves every KDE type)
-and adds three jobs that are not `make` targets:
+CI runs the same `make` targets (the `qml` and `qml-tests` jobs install Plasma and Kirigami first, so qmllint resolves
+every KDE type and the components load against today's Arch) and adds three jobs that are not `make` targets:
 
 - `package-arch` builds the Arch package from the tree as a normal user (`ci/package-arch.sh`), runs namcap (an `E:` fails
   the job), installs the package, checks `chordist --help` and the plasmoid files, then builds the AUR files for the same
   tarball and compares the two packages.
 - `python-compat` runs pytest on Python 3.12, 3.13 and 3.14; `debian-trixie` runs pytest, node and qmltestrunner on
-  Debian's Python 3.13, Node 20 and Qt 6.8; `fedora-install` runs `make install`/`uninstall` into a throwaway home
-  (`ci/install-layout.sh`).
+  Debian's Python 3.13, Node 20, Qt 6.8 and Kirigami 6.13, the oldest stack the widget claims, where the components
+  test is the one that matters (Debian packages `org.kde.plasma.plasmoid` and `.configuration` nowhere, so `main.qml`
+  and `config.qml` are skipped there, listed in the output); `fedora-install` runs `make install`/`uninstall` into a
+  throwaway home on the current Fedora release (`ci/install-layout.sh`).
 - `release` runs on tags only ([releasing.md](releasing.md)).
 
 To reproduce one, run its script in the image it names, e.g.

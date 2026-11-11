@@ -40,6 +40,7 @@ python:
 
 # The image has Qt but not Plasma or Kirigami; qmllint needs them to resolve the widget's KDE types, so this job
 # installs them (about 1.2 GB, a minute or two; a no-op once the image carries them) and lints strictly.
+# (The qml-tests job needs the same modules, for the components test, and installs them the same way.)
 qml:
   stage: check
   script:
@@ -58,9 +59,13 @@ js-tests:
   stage: test
   script: [make test-js]
 
+# The song-model test, and every component created against the newest KDE stack (Arch is rolling: Kirigami, Plasma
+# and Qt as they are today). debian-trixie below does the same against the oldest one the widget claims.
 qml-tests:
   stage: test
-  script: [make test-qml]
+  script:
+    - pacman -Syu --noconfirm --needed --quiet plasma-workspace libplasma kirigami kcmutils
+    - make test-qml
 
 build:
   stage: test
@@ -99,7 +104,11 @@ python-compat:
     - python -m pytest -p no:cacheprovider
 
 # Debian's own Qt 6.8 (qmltestrunner ships in qt6-declarative-dev-tools; the QML modules are packaged apart),
-# Python 3.13 and Node 20: the oldest runtimes the project meets in a mainstream distribution.
+# Kirigami 6.13 and Plasma 6.3, Python 3.13 and Node 20: the oldest runtimes the project meets in a mainstream
+# distribution (Ubuntu 25.04 has the same Qt and KDE). The components test creates every widget component against
+# that Kirigami, which is what would have caught Kirigami.Chip.interactive (KF 6.16) in 2.0.0. Debian ships
+# org.kde.plasma.plasmoid and .configuration in no package, so main.qml and config.qml are skipped there, in the
+# open (tests/qml/tst_components.qml says why).
 debian-trixie:
   stage: test
   image: debian:trixie
@@ -109,6 +118,7 @@ debian-trixie:
     - >-
       apt-get install -y -qq --no-install-recommends make python3 python3-pytest nodejs
       qt6-declarative-dev-tools qml6-module-qttest qml6-module-qtquick
+      plasma-workspace libplasma6 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils
     - python3 -m pytest -p no:cacheprovider
     - make test-js
     - make test-qml
@@ -117,7 +127,7 @@ debian-trixie:
 # launcher finding its library under the prefix, and uninstall leaving nothing behind. See ci/install-layout.sh.
 fedora-install:
   stage: test
-  image: fedora:latest
+  image: fedora:45
   before_script: []
   script:
     - dnf install -y -q --setopt=install_weak_deps=False make python3 which kf6-kpackage libplasma

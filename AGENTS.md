@@ -14,7 +14,7 @@ bin/         chordistd, the launcher the systemd unit runs
 packaging/   the systemd user unit, the PKGBUILD (the only one: the AUR copy is generated from it) and its .install
 ci/          what the pipeline runs that is not a make target: the image, the Arch package and release scripts
 tests/       python/ (pytest), js/ (node --test), qml/ (qmltestrunner + the screenshot harness)
-tools/       update-chords-db.py; aur-pkgbuild.py (AUR files) and gitlab-release.py (tag pipeline)
+tools/       update-chords-db.py; deps.sh (`make deps`); aur-pkgbuild.py (AUR files) and gitlab-release.py (tag pipeline)
 docs/        architecture, API, testing
 ```
 
@@ -31,7 +31,7 @@ python3 -m chordist doctor
 ## Test
 
 ```sh
-make test      # pytest (no network), node --test, qmltestrunner (Qt 6, offscreen)
+make test      # pytest (no network), node --test, qmltestrunner (Qt 6, offscreen; also loads every component)
 make lint      # reuse, ruff, vulture, qmllint (warnings are errors), shellcheck
 make shots     # headless renders of the real QML against a fixture service -> build/shots
 ```
@@ -69,6 +69,11 @@ make shots     # headless renders of the real QML against a fixture service -> b
   (`syncLag`).
 - Unit-file sandboxing is real: new files the service writes must be under `~/.config/chordist`,
   `~/.local/share/chordist` or the cache directory, or `ReadWritePaths` must grow.
+- **The widget has to load on the oldest Kirigami it claims (6.13, Debian 13).** Check a Kirigami/Plasma property or
+  type against that release before using it, and look a newer one up by name (`typeof x["prop"]`) rather than
+  writing it in a binding. `tests/qml/tst_components.qml` creates every component and the `debian-trixie` job runs it
+  on Kirigami 6.13. A new top-level component gets covered by being in `contents/ui`; one needing a module that
+  Debian does not package goes on the (commented) list there.
 - QML: `Layout.fillHeight: false` on nested layouts that should not stretch (a hidden-row layout otherwise
   soaks up spare height); methods and properties cannot start with a capital, so MPRIS fakes are plain objects.
 - Never push to the default branch; open a merge request. Never restart the owner's plasmashell or service
