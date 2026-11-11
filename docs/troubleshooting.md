@@ -29,8 +29,29 @@ If it fails to start, `journalctl` says why. The usual causes:
 
 - **Port 8788 is taken.** Change `"port"` in `~/.config/chordist/config.json` *and* the service address in the
   widget's settings.
-- **`status=226/NAMESPACE`.** The unit sandboxes the service and needs its three directories to exist:
-  `mkdir -p ~/.config/chordist ~/.local/share/chordist` and restart.
+- **`status=226/NAMESPACE`.** The unit sandboxes the service (a read-only view of the system and home, a private
+  `/tmp`), and that needs a mount namespace. Two causes:
+  - Its directories do not exist yet: `mkdir -p ~/.config/chordist ~/.local/share/chordist` and restart.
+  - The kernel does not let an unprivileged user create namespaces. Look at
+    `sysctl kernel.unprivileged_userns_clone` (Debian-family kernels; `0` is off),
+    `sysctl kernel.apparmor_restrict_unprivileged_userns` (Ubuntu 24.04 and later; `1` restricts them) and
+    `sysctl user.max_user_namespaces` (`0` is off). Allowing them is the proper fix; if you would rather not,
+    turn the sandbox off for this one service with a drop-in (`systemctl --user edit chordistd`):
+
+    ```ini
+    [Service]
+    ProtectSystem=no
+    ProtectHome=no
+    PrivateTmp=no
+    ProtectKernelTunables=no
+    ProtectKernelModules=no
+    ProtectControlGroups=no
+    ReadWritePaths=
+    ```
+
+    then `systemctl --user restart chordistd`. The service then runs with your user's full access, which is what
+    any program you start yourself already has; it still listens on loopback only and fetches only the sites in
+    [SECURITY.md](SECURITY.md).
 
 ## No chords found for this track
 
@@ -67,13 +88,18 @@ the same song exists many times (live, acoustic, remaster). Your choice is saved
 ## Audio identification does nothing
 
 It only runs when the player's metadata cannot be matched by name, and needs `songrec`, `pw-record` and `pactl`
-(`chordist doctor` shows which are missing). It listens to your default output for a few seconds, so something has to
-be playing. Switch it off with `"fingerprint_enabled": false`.
+(`chordist doctor` shows which are missing, and the path of the `songrec` it found). It listens to your default output
+for a few seconds, so something has to be playing. Switch it off with `"fingerprint_enabled": false`.
+
+`songrec` is packaged on Arch only. Elsewhere install it from its
+[project page](https://github.com/marin-m/SongRec#installation); Chordist finds it on `PATH`, in `~/.cargo/bin` and
+in `~/.local/bin`, or wherever `"songrec_path"` in `~/.config/chordist/config.json` points.
 
 ## The floating window does not stay on top
 
-Wayland clients cannot ask for that. Use the title-bar menu (**More actions → Keep above others**) or a KWin window
-rule for "Chordist".
+Under X11 the window asks to stay on top and KWin honours it. Wayland clients cannot ask for that: use the title-bar
+menu (**More actions → Keep above others**) or a KWin window rule for "Chordist". Which of the two you are on:
+`echo $XDG_SESSION_TYPE`.
 
 ## Reporting a bug
 
