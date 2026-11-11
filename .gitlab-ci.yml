@@ -135,9 +135,11 @@ fedora-install:
 
 # ---- release (tag vX.Y.Z only) --------------------------------------------------------------------------------
 # Runs after every job above is green. Checks the tag against VERSION, builds the tarball from the tagged tree,
-# generates the AUR files for it, and creates the GitLab release with the changelog section as its notes and the
-# tarball as an asset. The tarball is the job's own artifact, kept forever: GitLab's `.../releases/vX.Y.Z/downloads/
-# chordist-X.Y.Z.tar.gz` redirects to it, and that is the URL the AUR package downloads. See ci/release.sh.
+# generates the AUR files for it, uploads the tarball to the project's generic package registry (which keeps it for as
+# long as the project exists; the project setting must be on), and creates the GitLab release with the changelog
+# section as its notes and that package file as its asset. GitLab's `.../releases/vX.Y.Z/downloads/chordist-X.Y.Z.tar.gz`
+# redirects to it, and that is the URL the AUR package downloads. The job's own artifacts are only a convenience
+# (the AUR files, the tarball) and expire. See ci/release.sh and docs/releasing.md.
 release:
   stage: release
   rules:
@@ -146,7 +148,7 @@ release:
   interruptible: false
   script: [ci/release.sh]
   artifacts:
-    expire_in: never
+    expire_in: 1 month
     paths:
       - dist/chordist-*.tar.gz
       - build/aur/PKGBUILD

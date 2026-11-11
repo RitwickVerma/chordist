@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: MIT
 # The `release` job (tag pipelines only): the tarball from the tagged tree, the AUR files for it, the GitLab release.
-# Needs CI_COMMIT_TAG, CI_JOB_ID, CI_JOB_TOKEN, CI_API_V4_URL, CI_PROJECT_ID, CI_PROJECT_URL (GitLab sets them).
+# Needs CI_COMMIT_TAG, CI_JOB_TOKEN, CI_API_V4_URL, CI_PROJECT_ID, CI_PROJECT_URL (GitLab sets them), and the project's
+# generic package registry enabled: the tarball is uploaded there (docs/releasing.md).
 set -euo pipefail
 # shellcheck source=ci/arch-lib.sh
 . ci/arch-lib.sh

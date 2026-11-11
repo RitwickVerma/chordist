@@ -7,10 +7,13 @@
     tools/gitlab-release.py notes 2.0.0                      # the changelog section, as the release notes
     tools/gitlab-release.py publish dist/chordist-2.0.0.tar.gz   # in a tag pipeline (CI_* variables)
 
-The tarball is not uploaded anywhere new: the release links to the job artifact it was built as (kept forever by
-the release job), under the stable name /-/releases/vX.Y.Z/downloads/chordist-X.Y.Z.tar.gz that the AUR package
-downloads from. It authenticates as the job (CI_JOB_TOKEN), or with RELEASE_TOKEN if that CI variable is set. `publish` fetches that name afterwards and compares checksums, so a broken link fails the job
-rather than a user's `makepkg`. Standard library only; the project's package registry is not needed.
+The tarball is uploaded to the project's generic package registry (chordist/X.Y.Z/chordist-X.Y.Z.tar.gz), which
+keeps it for as long as the project exists whatever happens to the pipeline, and the release links to that package
+file under the stable name /-/releases/vX.Y.Z/downloads/chordist-X.Y.Z.tar.gz that the AUR package downloads from.
+It authenticates as the job (CI_JOB_TOKEN), or with RELEASE_TOKEN (a project access token with the api scope) if
+that CI variable is set. `publish` fetches the stable name afterwards and compares checksums, so a broken link fails
+the job rather than a user's `makepkg`. Needs the project's package registry enabled (docs/releasing.md).
+Standard library only.
 """
 
 from __future__ import annotations
@@ -46,6 +49,11 @@ def asset_name(version: str) -> str:
     return f"chordist-{version}.tar.gz"
 
 
+def package_url(api: str, project: str, version: str) -> str:
+    """Where the tarball lives in the generic package registry (also the URL it is uploaded to)."""
+    return f"{api}/projects/{project}/packages/generic/chordist/{version}/{asset_name(version)}"
+
+
 def release_payload(version: str, notes: str, asset_url: str) -> dict:
     return {
         "name": f"Chordist {version}",
@@ -70,8 +78,28 @@ def _open(req: urllib.request.Request):
     return urllib.request.build_opener().open(req, timeout=60)
 
 
+def _auth(token: str, private: bool) -> dict[str, str]:
+    return {"PRIVATE-TOKEN" if private else "JOB-TOKEN": token}
+
+
+def upload_package(url: str, tarball: Path, token: str, private: bool = False) -> None:
+    """PUT the tarball into the generic package registry (a retried job simply uploads it again)."""
+    req = urllib.request.Request(
+        url,
+        data=tarball.read_bytes(),
+        headers={"Content-Type": "application/octet-stream", **_auth(token, private)},
+        method="PUT",
+    )
+    try:
+        _open(req).close()
+    except urllib.error.HTTPError as err:
+        detail = err.read().decode(errors="replace")[:300]
+        hint = " (is the project's package registry enabled? see docs/releasing.md)" if err.code in (401, 403, 404) else ""
+        raise Error(f"uploading {tarball.name} to the package registry failed: HTTP {err.code} {detail}{hint}") from err
+
+
 def create_release(api: str, project: str, token: str, payload: dict, private: bool = False) -> None:
-    auth = {"PRIVATE-TOKEN" if private else "JOB-TOKEN": token}
+    auth = _auth(token, private)
     req = urllib.request.Request(
         f"{api}/projects/{project}/releases",
         data=json.dumps(payload).encode(),
@@ -125,14 +153,19 @@ def main(argv: list[str] | None = None) -> int:
             raise Error(f"{args.tarball.name} is not {asset_name(version)}")
         sha256 = hashlib.sha256(args.tarball.read_bytes()).hexdigest()
         project_url = env["CI_PROJECT_URL"].rstrip("/")
-        asset_url = f"{project_url}/-/jobs/{env['CI_JOB_ID']}/artifacts/raw/{args.tarball.as_posix()}"
+        api, project = env["CI_API_V4_URL"], env["CI_PROJECT_ID"]
+        asset_url = package_url(api, project, version)
         payload = release_payload(version, changelog_section(args.changelog.read_text(), version), asset_url)
         if args.dry_run:
+            print(f"PUT {asset_url}")
             print(json.dumps(payload, indent=2))
             return 0
         # CI_JOB_TOKEN by default; a project access token (api scope) in RELEASE_TOKEN overrides it.
         private = env.get("RELEASE_TOKEN", "")
-        create_release(env["CI_API_V4_URL"], env["CI_PROJECT_ID"], private or env["CI_JOB_TOKEN"], payload, bool(private))
+        token = private or env["CI_JOB_TOKEN"]
+        upload_package(asset_url, args.tarball, token, bool(private))
+        print(f"uploaded {asset_url}")
+        create_release(api, project, token, payload, bool(private))
         print(f"release v{version} created; tarball sha256 {sha256}")
         if not args.no_verify:
             verify_download(project_url, version, sha256)

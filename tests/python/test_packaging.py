@@ -170,19 +170,37 @@ def test_the_stable_download_path_is_what_the_aur_source_uses():
     assert "/-/releases/v$pkgver/" in aur.SOURCE
 
 
+PACKAGE_PATH = "/api/v4/projects/42/packages/generic/chordist/9.8.7/chordist-9.8.7.tar.gz"
+
+
 class FakeGitLab(BaseHTTPRequestHandler):
-    """Just enough of GitLab: create a release, redirect the stable name to the asset, serve the asset."""
+    """Just enough of GitLab: the generic package registry, release creation, and the stable name redirecting to
+    the package file. `seen` records every write as (method, path, token, body)."""
 
     seen: ClassVar[list] = []
-    body: ClassVar[bytes] = b"the tarball"
+    stored: ClassVar[bytes | None] = None      # what the registry holds, as uploaded
+    serve_instead: ClassVar[bytes | None] = None
     conflict: ClassVar[bool] = False
+    upload_status: ClassVar[int] = 201
 
     def log_message(self, *args):  # silence the default stderr logging
         pass
 
+    def _token(self):
+        return self.headers["JOB-TOKEN"] or self.headers["PRIVATE-TOKEN"]
+
+    def do_PUT(self):
+        data = self.rfile.read(int(self.headers["Content-Length"]))
+        FakeGitLab.seen.append(("PUT", self.path, self._token(), data))
+        if FakeGitLab.upload_status == 201 and self.path == PACKAGE_PATH:
+            FakeGitLab.stored = data
+        self.send_response(FakeGitLab.upload_status)
+        self.end_headers()
+        self.wfile.write(b'{"message":"403 Forbidden"}')
+
     def do_POST(self):
         payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        FakeGitLab.seen.append((self.path, self.headers["JOB-TOKEN"] or self.headers["PRIVATE-TOKEN"], payload))
+        FakeGitLab.seen.append(("POST", self.path, self._token(), payload))
         self.send_response(409 if FakeGitLab.conflict else 201)
         self.end_headers()
         self.wfile.write(b'{"message":"Release already exists"}')
@@ -190,12 +208,12 @@ class FakeGitLab(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/g/p/-/releases/v9.8.7/downloads/chordist-9.8.7.tar.gz":
             self.send_response(302)
-            self.send_header("Location", "/g/p/-/jobs/7/artifacts/raw/dist/chordist-9.8.7.tar.gz")
+            self.send_header("Location", PACKAGE_PATH)
             self.end_headers()
-        elif self.path == "/g/p/-/jobs/7/artifacts/raw/dist/chordist-9.8.7.tar.gz":
+        elif self.path == PACKAGE_PATH:
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(FakeGitLab.body)
+            self.wfile.write(FakeGitLab.serve_instead or FakeGitLab.stored or b"")
         else:
             self.send_response(404)
             self.end_headers()
@@ -203,7 +221,8 @@ class FakeGitLab(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def gitlab(tmp_path, monkeypatch):
-    FakeGitLab.seen, FakeGitLab.body, FakeGitLab.conflict = [], b"the tarball", False
+    FakeGitLab.seen, FakeGitLab.stored, FakeGitLab.serve_instead = [], None, None
+    FakeGitLab.conflict, FakeGitLab.upload_status = False, 201
     server = HTTPServer(("127.0.0.1", 0), FakeGitLab)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_port}"
@@ -214,7 +233,6 @@ def gitlab(tmp_path, monkeypatch):
     monkeypatch.setenv("CI_API_V4_URL", f"{base}/api/v4")
     monkeypatch.setenv("CI_PROJECT_ID", "42")
     monkeypatch.setenv("CI_PROJECT_URL", f"{base}/g/p")
-    monkeypatch.setenv("CI_JOB_ID", "7")
     monkeypatch.setenv("CI_JOB_TOKEN", "secret-job-token")
     monkeypatch.chdir(tmp_path)
     (tmp_path / "dist").mkdir()
@@ -227,22 +245,26 @@ def gitlab(tmp_path, monkeypatch):
 
 @pytest.mark.loopback
 @pytest.mark.usefixtures("gitlab")
-def test_publish_creates_the_release_and_checks_the_stable_url(capsys):
+def test_publish_uploads_the_tarball_then_creates_the_release_and_checks_the_stable_url(capsys):
     assert release.main(["publish", "dist/chordist-9.8.7.tar.gz", "--changelog", "CHANGELOG.md"]) == 0
-    path, token, payload = FakeGitLab.seen[0]
-    assert path == "/api/v4/projects/42/releases"
-    assert token == "secret-job-token"
+    put, post = FakeGitLab.seen
+    # the tarball goes into the generic package registry with the job's token, before the release names it
+    assert put[:3] == ("PUT", PACKAGE_PATH, "secret-job-token")
+    assert put[3] == b"the tarball"
+    method, path, token, payload = post
+    assert (method, path, token) == ("POST", "/api/v4/projects/42/releases", "secret-job-token")
     assert payload["tag_name"] == "v9.8.7"
     assert payload["description"].startswith("Intro line.")
     link = payload["assets"]["links"][0]
-    assert link["url"].endswith("/g/p/-/jobs/7/artifacts/raw/dist/chordist-9.8.7.tar.gz")
+    assert link["url"].endswith(PACKAGE_PATH)
+    assert link["direct_asset_path"] == "/chordist-9.8.7.tar.gz"
     assert "checksum matches" in capsys.readouterr().out
 
 
 @pytest.mark.loopback
 @pytest.mark.usefixtures("gitlab")
 def test_publish_fails_when_the_stable_url_serves_something_else(capsys):
-    FakeGitLab.body = b"another file"
+    FakeGitLab.serve_instead = b"another file"
     assert release.main(["publish", "dist/chordist-9.8.7.tar.gz", "--changelog", "CHANGELOG.md"]) == 1
     assert "serves sha256" in capsys.readouterr().err
 
@@ -257,10 +279,19 @@ def test_publish_says_what_to_do_when_the_release_exists(capsys):
 
 @pytest.mark.loopback
 @pytest.mark.usefixtures("gitlab")
-def test_a_release_token_variable_replaces_the_job_token(monkeypatch):
+def test_a_failed_upload_stops_before_any_release_exists_and_names_the_registry(capsys):
+    FakeGitLab.upload_status = 403
+    assert release.main(["publish", "dist/chordist-9.8.7.tar.gz", "--changelog", "CHANGELOG.md"]) == 1
+    assert "package registry" in capsys.readouterr().err
+    assert [call[0] for call in FakeGitLab.seen] == ["PUT"]
+
+
+@pytest.mark.loopback
+@pytest.mark.usefixtures("gitlab")
+def test_a_release_token_variable_replaces_the_job_token_for_both_requests(monkeypatch):
     monkeypatch.setenv("RELEASE_TOKEN", "project-token")
     assert release.main(["publish", "dist/chordist-9.8.7.tar.gz", "--changelog", "CHANGELOG.md"]) == 0
-    assert FakeGitLab.seen[0][1] == "project-token"
+    assert [call[2] for call in FakeGitLab.seen] == ["project-token", "project-token"]
 
 
 @pytest.mark.usefixtures("gitlab")
@@ -274,5 +305,8 @@ def test_publish_refuses_a_tag_that_is_not_the_version(monkeypatch, capsys):
 @pytest.mark.usefixtures("gitlab")
 def test_publish_dry_run_sends_nothing(capsys):
     assert release.main(["publish", "dist/chordist-9.8.7.tar.gz", "--dry-run", "--changelog", "CHANGELOG.md"]) == 0
-    assert json.loads(capsys.readouterr().out)["tag_name"] == "v9.8.7"
+    out = capsys.readouterr().out
+    first = out.splitlines()[0]
+    assert first.startswith("PUT http://127.0.0.1:") and first.endswith(PACKAGE_PATH)
+    assert json.loads(out.split("\n", 1)[1])["tag_name"] == "v9.8.7"
     assert FakeGitLab.seen == []
