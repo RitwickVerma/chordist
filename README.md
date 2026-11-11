@@ -50,8 +50,9 @@ The pictures are headless renders against a fixture service (`make shots`), not 
 Needs KDE Plasma 6 and Python 3.12+ (`make deps` tells you what your machine is missing and prints the install line
 for Arch, Debian and Ubuntu, Fedora or openSUSE).
 
-Tested range: Kirigami 6.13 to 6.31, Qt 6.8 to 6.12, Plasma 6.3 to 6.8, which covers Debian 13 and Ubuntu 25.04 at
-the old end and Arch at the new. The widget reads the player through `org.kde.plasma.private.mpris`, a *private*
+Tested on Qt 6.8 to 6.12 with Kirigami 6.13 to 6.31: every widget component loads and the tests pass at both ends
+(Debian 13 is the old end, Arch the new), and the widget runs in a Plasma 6.8 shell. Plasma shells older than 6.8 have
+not been tried. The widget reads the player through `org.kde.plasma.private.mpris`, a *private*
 Plasma API: it is not covered by KDE's compatibility promises, so a future Plasma may need a release of Chordist
 to follow it.
 

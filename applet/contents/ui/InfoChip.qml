@@ -10,8 +10,8 @@ import org.kde.plasma.components as PlasmaComponents3
 // Static unless `clickable` is set; `highlighted` marks it as the one to look at.
 //
 // `clickable` is ours and `Kirigami.Chip.interactive` is not used by name: that property only exists from
-// KDE Frameworks 6.16, and naming it in a binding is a load error on the Kirigami that Debian 13 and Ubuntu
-// 25.04 ship (6.13), which takes the whole popup down with it.
+// KDE Frameworks 6.16, and naming it in a binding is a load error on older Kirigami (Debian 13 ships 6.13), which
+// takes the whole popup down with it.
 Kirigami.Chip {
     id: chip
 

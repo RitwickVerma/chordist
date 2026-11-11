@@ -116,7 +116,10 @@ def bare_path(tmp_path):
 def deps(bare_path: Path, os_id: str, mode: str = "runtime") -> subprocess.CompletedProcess[str]:
     release = bare_path.parent / "os-release"
     release.write_text(f"ID={os_id}\n")
-    env = {"PATH": str(bare_path), "HOME": str(bare_path.parent), "DEPS_OS_RELEASE": str(release)}
+    env = {"PATH": str(bare_path), "HOME": str(bare_path.parent), "DEPS_OS_RELEASE": str(release),
+           # The Qt tools are looked for by file, not on PATH: point at nothing, or a machine that has them (the
+           # Debian CI job) sees them installed and leaves them out of the list.
+           "DEPS_QT_BIN": str(bare_path.parent / "no-qt")}
     return subprocess.run(
         [shutil.which("bash"), str(ROOT / "tools/deps.sh"), mode], env=env, capture_output=True, text=True, check=False
     )
