@@ -8,7 +8,8 @@ All notable changes are documented here. The format follows
 ### Fixed
 
 - The Arch package now depends on `hicolor-icon-theme`, which owns the icon directory it installs into
-  (a namcap error).
+  (a namcap error), and declares `bash` (the launcher) and `kcmutils` (the settings page) instead of
+  getting them through other packages.
 
 ## [2.0.0] — 2026-11-10
 
