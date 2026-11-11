@@ -4,8 +4,8 @@
 #
 # Create every component of the widget (contents/ui/*.qml, ui/config/*.qml, config/config.qml) on the Qt and KDE
 # stack that is installed, and fail when one does not load or when loading it prints a warning. This is what catches
-# an API that only newer Kirigami or Plasma has: the popup of 2.0.0 was dead on Kirigami 6.13 (Debian 13, Ubuntu
-# 25.04) while every other check, run on the newest stack, passed. See tst_components.qml for what it may skip.
+# an API that only newer Kirigami or Plasma has: the popup of 2.0.0 was dead on Kirigami 6.13 (Debian 13) while
+# every other check, run on the newest stack, passed. See tst_components.qml for what it may skip.
 #
 #   tests/qml/components.sh            QMLTEST (default qmltestrunner) must be Qt 6's
 set -euo pipefail
@@ -35,7 +35,10 @@ shim_applet "$root" "$work"
 cp "$root/tests/qml/tst_components.qml" "$work/"
 
 status=0
-QT_QPA_PLATFORM=offscreen "${QMLTEST:-qmltestrunner}" -input "$work/tst_components.qml" >"$work/out.log" 2>&1 || status=$?
+# The style Plasma itself runs widgets with (qqc2-desktop-style); left to itself Qt picks Fusion, for which Kirigami
+# has no platform plugin and says so, a warning no Plasma user ever sees.
+QT_QUICK_CONTROLS_STYLE="${QT_QUICK_CONTROLS_STYLE:-org.kde.desktop}" QT_QPA_PLATFORM=offscreen \
+    "${QMLTEST:-qmltestrunner}" -input "$work/tst_components.qml" >"$work/out.log" 2>&1 || status=$?
 cat "$work/out.log"
 # A warning while a component loads (a binding that threw, a property that is not there) is a failure too, except
 # for the noise KDE's window-system code makes when there is no display to talk to. Each pattern is that and

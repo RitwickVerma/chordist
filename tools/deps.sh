@@ -52,7 +52,7 @@ pkg() {
         arch:shellcheck) echo shellcheck ;;
         arch:reuse) echo reuse ;;
         arch:qmllint | arch:qmltestrunner) echo qt6-declarative ;;
-        arch:qml-modules) echo "plasma-workspace libplasma kirigami kcmutils" ;;
+        arch:qml-modules) echo "plasma-workspace libplasma kirigami kcmutils qqc2-desktop-style" ;;
 
         debian:python3) echo python3 ;;
         debian:kpackagetool6) echo kpackagetool6 ;;
@@ -65,7 +65,7 @@ pkg() {
         debian:shellcheck) echo shellcheck ;;
         debian:reuse) echo reuse ;;
         debian:qmllint | debian:qmltestrunner) echo "qt6-declarative-dev-tools qml6-module-qttest" ;;
-        debian:qml-modules) echo "plasma-workspace libplasma6 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils" ;;
+        debian:qml-modules) echo "plasma-workspace libplasma6 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils qml6-module-org-kde-desktop" ;;
 
         fedora:python3) echo python3 ;;
         fedora:kpackagetool6) echo kf6-kpackage ;;
@@ -79,7 +79,7 @@ pkg() {
         fedora:shellcheck) echo ShellCheck ;;
         fedora:reuse) echo reuse ;;
         fedora:qmllint | fedora:qmltestrunner) echo qt6-qtdeclarative-devel ;;
-        fedora:qml-modules) echo "plasma-workspace libplasma kf6-kirigami kf6-kcmutils" ;;
+        fedora:qml-modules) echo "plasma-workspace libplasma kf6-kirigami kf6-kcmutils kf6-qqc2-desktop-style" ;;
 
         suse:python3) echo python3 ;;
         suse:kpackagetool6) echo kf6-kpackage ;;
@@ -93,7 +93,7 @@ pkg() {
         suse:shellcheck) echo ShellCheck ;;
         suse:reuse) echo reuse ;;
         suse:qmllint | suse:qmltestrunner) echo qt6-declarative-tools ;;
-        suse:qml-modules) echo "plasma6-workspace qt6-declarative-imports kf6-kirigami-imports kf6-kcmutils-imports" ;;
+        suse:qml-modules) echo "plasma6-workspace qt6-declarative-imports kf6-kirigami-imports kf6-kcmutils-imports kf6-qqc2-desktop-style" ;;
     esac
 }
 

@@ -44,7 +44,7 @@ python:
 qml:
   stage: check
   script:
-    - pacman -Syu --noconfirm --needed --quiet plasma-workspace libplasma kirigami kcmutils
+    - pacman -Syu --noconfirm --needed --quiet plasma-workspace libplasma kirigami kcmutils qqc2-desktop-style
     - make lint-qml
 
 shell:
@@ -64,7 +64,7 @@ js-tests:
 qml-tests:
   stage: test
   script:
-    - pacman -Syu --noconfirm --needed --quiet plasma-workspace libplasma kirigami kcmutils
+    - pacman -Syu --noconfirm --needed --quiet plasma-workspace libplasma kirigami kcmutils qqc2-desktop-style
     - make test-qml
 
 build:
@@ -118,7 +118,7 @@ debian-trixie:
     - >-
       apt-get install -y -qq --no-install-recommends make python3 python3-pytest nodejs
       qt6-declarative-dev-tools qml6-module-qttest qml6-module-qtquick
-      plasma-workspace libplasma6 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils
+      plasma-workspace libplasma6 qml6-module-org-kde-kirigami qml6-module-org-kde-kcmutils qml6-module-org-kde-desktop
     - python3 -m pytest -p no:cacheprovider
     - make test-js
     - make test-qml
