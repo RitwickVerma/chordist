@@ -25,6 +25,10 @@ A release is a version bump, a changelog entry, a green tree and a tag. Nothing 
 
    Push the tag, and attach the tarball to the GitLab release with the changelog section as its notes. GitLab
    pushes the tag on to the GitHub mirror; give it a GitHub release with the same notes and tarball.
+6. **AUR.** The `chordist` AUR package lives in its own repository (`ssh://aur@aur.archlinux.org/chordist.git`),
+   not here: its checksum covers the release tarball, which contains this tree. In that clone, carry over any
+   `depends` or `package()` change from `packaging/PKGBUILD`, set `pkgver` (and `pkgrel=1`), run `updpkgsums` and
+   `makepkg --printsrcinfo > .SRCINFO`, build it with `makepkg -f` and `namcap` the result, then commit and push.
 
 The version follows [Semantic Versioning](https://semver.org): a change to the HTTP API's shape, to the config keys
 or to the on-disk layout (`~/.config|.local/share|.cache/chordist`) is a major version, and ships with a migration.

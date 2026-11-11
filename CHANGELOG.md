@@ -3,6 +3,13 @@
 All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- The Arch package now depends on `hicolor-icon-theme`, which owns the icon directory it installs into
+  (a namcap error).
+
 ## [2.0.0] — 2026-11-10
 
 A rebuild of the widget and a hardening of the service. Settings, saved charts and per-song memory carry over.

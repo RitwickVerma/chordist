@@ -10,7 +10,7 @@ pkgdesc='Guitar companion for KDE Plasma: live chords, tabs, lyrics and fingerin
 arch=('any')
 url='https://gitlab.com/ritwick7/chordist'
 license=('MIT')
-depends=('python' 'plasma-workspace' 'libplasma' 'kirigami' 'qt6-declarative')
+depends=('python' 'plasma-workspace' 'libplasma' 'kirigami' 'qt6-declarative' 'hicolor-icon-theme')
 optdepends=(
   'songrec: identify a track from its audio when its metadata is unusable'
   'pipewire-audio: record the output for songrec (pw-record)'
