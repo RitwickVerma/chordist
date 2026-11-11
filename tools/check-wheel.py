@@ -26,6 +26,8 @@ def main(path: str) -> int:
         console = wheel.read(entry).decode() if entry else ""
     if "chordist = chordist.cli:main" not in console:
         missing.append("console script `chordist`")
+    if not any(name.endswith(".dist-info/licenses/LICENSE") for name in names):
+        missing.append("the licence (pyproject's license-files)")
     if missing:
         print("wheel is missing:", ", ".join(missing), file=sys.stderr)
         return 1
