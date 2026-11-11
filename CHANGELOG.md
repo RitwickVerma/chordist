@@ -3,20 +3,53 @@
 All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [2.0.1] — 2026-11-10
 
-### Changed
-
-- Releases are cut by the tag pipeline: it builds the tarball, creates the GitLab release and generates the AUR
-  `PKGBUILD`, `chordist.install` and `.SRCINFO` from `packaging/` (`make aur`), so the AUR copy cannot drift. Every
-  merge request now builds and namcap-checks the Arch package and runs the tests on Python 3.12 to 3.14, Debian
-  trixie and Fedora, and CI lints the QML with the KDE modules installed (no checks switched off).
+Chordist runs on the KDE Frameworks that Debian 13 ships, installs on distributions other than Arch, and is now
+packaged and released by CI.
 
 ### Fixed
 
-- The Arch package now depends on `hicolor-icon-theme`, which owns the icon directory it installs into
-  (a namcap error), and declares `bash` (the launcher) and `kcmutils` (the settings page) instead of
-  getting them through other packages.
+- **The popup failed to load on KDE Frameworks older than 6.16** (Debian 13 ships 6.13): it used
+  `Kirigami.Chip.interactive` (Frameworks 6.16) and `Kirigami.Theme.fixedWidthFont` (6.14), so the info strip,
+  section bar and Stage did not load and the chord chart threw errors. Both are now used only where they exist.
+- `make lint` and `make test` looked for Qt only in Arch's `/usr/lib/qt6`; they now ask `qtpaths6` (Fedora and
+  openSUSE keep it in `/usr/lib64`) and leave out qmllint options that an older Qt does not know.
+- `make install PREFIX=…` wrote a service unit that still pointed at `~/.local/bin`; it now points at the launcher it
+  installed. Without a running user systemd, `make install` prints the commands to run instead of stopping with the
+  widget uninstalled.
+- `make migrate-panel` could leave the panel stopped when a step failed. It now checks for `kwriteconfig6` before it
+  stops anything, and always brings the shell back, through systemd when Plasma runs under it.
+- Audio identification records for 1 to 30 seconds whatever the setting says, and a recorder that overstays is
+  killed with everything it started. SongRec is found in `~/.cargo/bin` and `~/.local/bin`, which a systemd service's
+  `PATH` does not include, and `chordist doctor` shows which one is used.
+- The service's sandbox follows `XDG_CONFIG_HOME` instead of assuming `~/.config`.
+- `chordist lyrics` and `chordist chords` exit non-zero, with the reason on stderr, when nothing was found.
+- The tempo chip no longer logs an i18n warning on every load.
+- The Arch package depends on `hicolor-icon-theme`, which owns the icon directory it installs into (a namcap
+  error), and declares `bash` and `kcmutils`, which it uses directly.
+
+### Changed
+
+- `make deps` lists only what running Chordist needs, checks for Python 3.12 or newer, and prints the install line
+  for the distribution it runs on (Arch, Debian and Ubuntu, Fedora, openSUSE). `make deps-dev` adds the test and
+  lint tools.
+- The "open as a window" setting says what it does: on top under X11; under Wayland, Keep Above from the window's
+  title-bar menu.
+- The README states the tested range and covers installing SongRec, `songrec_path`, and the service's sandbox on
+  kernels without unprivileged user namespaces.
+- The wheel builds with uv_build 0.13 or 0.14 and carries the licence.
+
+### Added
+
+- Every merge request builds the Arch package as a normal user, fails on any namcap error, installs and runs it,
+  and builds the AUR files from the same tarball. It also runs the tests on Python 3.12, 3.13 and 3.14, on Debian 13
+  (loading every widget component on its Kirigami 6.13) and on Fedora, and lints the QML with the KDE modules
+  installed.
+- A test that creates every widget component on the installed Qt and KDE stack (`make test-qml`).
+- Releases are cut by pushing a `vX.Y.Z` tag: CI builds the tarball, keeps it in the project's package registry,
+  creates the GitLab release from this changelog and generates the AUR `PKGBUILD`, `chordist.install` and
+  `.SRCINFO` from `packaging/` (`make aur`), so the AUR package cannot drift from this repository.
 
 ## [2.0.0] — 2026-11-10
 

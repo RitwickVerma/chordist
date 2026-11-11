@@ -8,7 +8,7 @@
 # and `depends` here only.
 
 pkgname=chordist
-pkgver=2.0.0
+pkgver=2.0.1
 pkgrel=1
 pkgdesc='Guitar companion for KDE Plasma: live chords, tabs, lyrics and fingerings for whatever is playing'
 arch=('any')

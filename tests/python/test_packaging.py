@@ -54,7 +54,8 @@ def test_the_packaging_directory_owns_the_install_file():
 
 
 def test_only_source_checksum_and_header_differ_from_the_source_pkgbuild():
-    out = aur.render_pkgbuild(PKGBUILD, "2.0.0", SHA)
+    # The repository's own version: the generator writes pkgver from it, so any other would show up as a change.
+    out = aur.render_pkgbuild(PKGBUILD, (ROOT / "VERSION").read_text().strip(), SHA)
     mine = PKGBUILD.splitlines()
     theirs = out.splitlines()
     changed = [line for line in theirs if line not in mine]
