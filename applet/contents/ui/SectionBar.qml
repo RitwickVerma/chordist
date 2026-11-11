@@ -60,7 +60,7 @@ RowLayout {
                     required property var modelData
                     readonly property var span: modelData
                     payload: modelData
-                    interactive: true
+                    clickable: true
                     highlighted: !!(bar.current && bar.current.row === span.row)
                     icon.name: bar.loop && bar.loop.start === span.start ? "media-playlist-repeat" : ""
                     text: span.name.length > 18 ? span.name.substring(0, 17) + "…" : span.name

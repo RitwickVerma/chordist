@@ -37,7 +37,7 @@ Flow {
     // The capo calculator's suggestion: one click applies it.
     InfoChip {
         visible: !!strip.advice
-        interactive: true
+        clickable: true
         highlighted: true
         icon.name: "tools-wizard"
         text: strip.advice ? i18n("Easier: capo %1 → %2", strip.advice.capo,

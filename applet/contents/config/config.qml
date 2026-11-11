@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-import QtQuick 2.0
+import QtQuick
 import org.kde.plasma.configuration
 
 ConfigModel {

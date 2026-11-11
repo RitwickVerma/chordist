@@ -103,7 +103,7 @@ KCM.SimpleKCM {
         QQC.CheckBox {
             id: openAsWindow
             Kirigami.FormData.label: i18n("Floating window:")
-            text: i18n("Open as a window that stays above other windows")
+            text: i18n("Open as a separate window (on top under X11; under Wayland use Keep Above in its title-bar menu)")
         }
 
         QQC.SpinBox {

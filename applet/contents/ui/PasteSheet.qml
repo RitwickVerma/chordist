@@ -32,7 +32,9 @@ ColumnLayout {
         placeholderText: "Am        F\nWhen you were here before\nC         G\nand I wish I was special\n\n(or an Ultimate Guitar address)"
         wrapMode: QQC.TextArea.Wrap
         selectByMouse: true
-        font: Kirigami.Theme.fixedWidthFont
+        // Kirigami.Theme.fixedWidthFont is KDE Frameworks 6.14 and later; "monospace" stands in before that.
+        font: Kirigami.Theme.fixedWidthFont !== undefined ? Kirigami.Theme.fixedWidthFont
+            : Qt.font({ family: "monospace", pointSize: Kirigami.Theme.defaultFont.pointSize })
         background: Rectangle {
             radius: Kirigami.Units.smallSpacing / 2
             color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.06)
