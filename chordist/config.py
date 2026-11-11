@@ -18,6 +18,10 @@ from typing import Any
 
 APP = "chordist"
 
+# How long the audio is recorded for identification. 0 would make timeout(1) run the recorder forever, and a
+# minute of a stream is a lot to keep; between 1 and 30 seconds is all SongRec needs.
+FINGERPRINT_SECONDS = (1, 30)
+
 DEFAULTS: dict[str, Any] = {
     # Local HTTP API the Plasma widget talks to.
     "host": "127.0.0.1",
@@ -57,6 +61,24 @@ DEFAULTS: dict[str, Any] = {
     "songrec_path": "",
     "log_level": "info",
 }
+
+
+def clamp_seconds(value: Any, default: int = 6) -> int:
+    """``value`` as a whole number of seconds within FINGERPRINT_SECONDS; ``default`` when it is not a number."""
+    low, high = FINGERPRINT_SECONDS
+    if isinstance(value, bool):
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    if number != number:     # NaN
+        return default
+    return int(min(max(number, low), high))
+
+
+def _normalise(key: str, value: Any) -> Any:
+    return clamp_seconds(value) if key == "fingerprint_seconds" else value
 
 
 def config_home() -> Path:
@@ -107,6 +129,7 @@ class Config:
         if values:
             for key, value in values.items():
                 if value is not None:
+                    value = _normalise(key, value)
                     self._values[key] = value
                     self._explicit[key] = value
 
@@ -114,6 +137,7 @@ class Config:
         return self._values.get(key, DEFAULTS.get(key))
 
     def __setitem__(self, key: str, value: Any) -> None:
+        value = _normalise(key, value)
         self._values[key] = value
         self._explicit[key] = value
 

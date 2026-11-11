@@ -83,6 +83,41 @@ def test_lyrics_prints_timed_lines(capsys, monkeypatch):
     assert "source lrclib  synced True" in out
 
 
+def test_lyrics_and_chords_fail_loudly_when_nothing_was_found(capsys, monkeypatch):
+    from chordist import chords, lyrics
+
+    monkeypatch.setattr(lyrics.LyricsProvider, "lookup", lambda self, *a, **k: {"source": "none", "error": "no match"})
+    code, out, err = run(capsys, "lyrics", "Nobody", "Nothing")
+    assert code == 1 and out == ""
+    assert "no lyrics found for Nobody - Nothing: no match" in err
+
+    monkeypatch.setattr(
+        chords.ChordProvider, "lookup",
+        lambda self, *a, **k: {"source": "none", "sections": [], "error": "no chords found"},
+    )
+    code, out, err = run(capsys, "chords", "Nobody", "Nothing")
+    assert code == 1 and out == ""
+    assert "no chords found for Nobody - Nothing: no chords found" in err
+    # --json still prints what the widget would receive, and the exit status still says there was nothing
+    code, out, err = run(capsys, "chords", "Nobody", "Nothing", "--json")
+    assert code == 1 and json.loads(out)["source"] == "none" and "no chords found" in err
+
+
+def test_doctor_prints_the_songrec_it_resolved(capsys, monkeypatch, tmp_path):
+    from chordist.config import Config
+
+    binary = tmp_path / "songrec"
+    binary.write_text("#!/bin/sh")
+    monkeypatch.setattr(Config, "load", classmethod(lambda cls: cls({"port": 1, "songrec_path": str(binary)})))
+    _, out, _ = run(capsys, "doctor")
+    assert f"[ok  ] songrec - {binary}" in out
+    monkeypatch.setattr(Config, "load", classmethod(lambda cls: cls({"port": 1, "songrec_path": str(tmp_path / "gone")})))
+    monkeypatch.setattr("chordist.fingerprint.shutil.which", lambda name: None)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    _, out, _ = run(capsys, "doctor")
+    assert "songrec_path" in out and "no such file" in out and "[warn] songrec" in out
+
+
 def test_cache_stats_prune_and_clear_cover_every_namespace(capsys):
     from chordist.cache import DiskCache
 
