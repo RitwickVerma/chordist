@@ -19,7 +19,8 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
 CacheDirectory=chordist
-ReadWritePaths=-%h/.config/chordist -%h/.local/share/chordist
+# %E is the configuration directory root: $XDG_CONFIG_HOME, or ~/.config. The data directory has no specifier.
+ReadWritePaths=-%E/chordist -%h/.local/share/chordist
 PrivateTmp=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
