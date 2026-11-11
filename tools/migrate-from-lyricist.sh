@@ -13,7 +13,7 @@
 #                                     yourself: `make migrate-panel`
 #
 # Environment: SYSTEMCTL (default "systemctl --user"), PREFIX (default ~/.local),
-# UNIT_DIR, KPT (kpackagetool6), RESTART_SHELL (yes/no) and the XDG_* variables, so a
+# UNIT_DIR, KPT (kpackagetool6), KWRITECONFIG, RESTART_SHELL (yes/no) and the XDG_* variables, so a
 # test can aim it at a throwaway home.
 #
 # SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
@@ -30,6 +30,7 @@ CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 UNIT_DIR="${UNIT_DIR:-$CONFIG_HOME/systemd/user}"
 SYSTEMCTL="${SYSTEMCTL:-systemctl --user}"
 KPT="${KPT:-kpackagetool6}"
+KWRITECONFIG="${KWRITECONFIG:-kwriteconfig6}"
 # "no" leaves plasmashell alone: for tests, which must never stop the real one.
 RESTART_SHELL="${RESTART_SHELL:-yes}"
 
@@ -65,6 +66,41 @@ migrate_data() {
     done
 }
 
+# plasmashell has to be stopped while its configuration is edited (it rewrites the file on exit), and it must
+# come back whatever happens in between, including a failing kwriteconfig6 or Ctrl-C: a missing panel is worse
+# than an unmigrated widget. Where the shell is a systemd user unit (the default since Plasma 5.26, often with
+# Restart=always) it is stopped through systemd, or systemd would start it again behind our back.
+SHELL_STOPPED=""
+SHELL_VIA=""
+stop_shell() {
+    say "stopping plasmashell (it rewrites its configuration on exit)"
+    # shellcheck disable=SC2086
+    if $SYSTEMCTL is-active --quiet plasma-plasmashell.service 2>/dev/null; then
+        SHELL_VIA=systemd
+        # shellcheck disable=SC2086
+        $SYSTEMCTL stop plasma-plasmashell.service || true
+    else
+        SHELL_VIA=kde
+        kquitapp6 plasmashell 2>/dev/null || true
+    fi
+    SHELL_STOPPED=yes
+    trap 'start_shell' EXIT
+    trap 'start_shell; exit 130' INT TERM
+    for _ in $(seq 1 50); do pgrep -x plasmashell >/dev/null || break; sleep 0.2; done
+}
+
+start_shell() {
+    [[ -n "$SHELL_STOPPED" ]] || return 0
+    SHELL_STOPPED=""
+    say "starting plasmashell"
+    if [[ "$SHELL_VIA" == systemd ]]; then
+        # shellcheck disable=SC2086
+        $SYSTEMCTL start plasma-plasmashell.service || true
+    else
+        (kstart plasmashell >/dev/null 2>&1 &)
+    fi
+}
+
 migrate_panel() {
     local rc="$CONFIG_HOME/plasma-org.kde.plasma.desktop-appletsrc"
     [[ -f "$rc" ]] || { say "no panel configuration at $rc: nothing to migrate"; return 0; }
@@ -88,24 +124,24 @@ PY
     if [[ -z "$found" ]]; then
         say "the panel does not use $OLD_ID: nothing to migrate"
     else
+        # Before anything is stopped: finding out afterwards that the tool is missing leaves the user with no panel.
+        if ! command -v "$KWRITECONFIG" >/dev/null 2>&1; then
+            say "$KWRITECONFIG not found (libkf6config-bin on Debian and Ubuntu, kf6-kconfig on Fedora and openSUSE): nothing was changed"
+            return 1
+        fi
         local backup
         backup="$rc.bak-chordist-$(date +%Y%m%d-%H%M%S)"
         if [[ "$RESTART_SHELL" == yes ]]; then
-            say "stopping plasmashell (it rewrites its configuration on exit)"
-            kquitapp6 plasmashell 2>/dev/null || true
-            for _ in $(seq 1 50); do pgrep -x plasmashell >/dev/null || break; sleep 0.2; done
+            stop_shell
         fi
         cp -p "$rc" "$backup"
         say "backup: $backup"
         while read -r container applet; do
-            kwriteconfig6 --file "$rc" --group Containments --group "$container" --group Applets \
+            "$KWRITECONFIG" --file "$rc" --group Containments --group "$container" --group Applets \
                 --group "$applet" --key plugin "$NEW_ID"
             say "panel: container $container applet $applet now uses $NEW_ID"
         done <<<"$found"
-        if [[ "$RESTART_SHELL" == yes ]]; then
-            say "starting plasmashell"
-            (kstart plasmashell >/dev/null 2>&1 &)
-        fi
+        start_shell
     fi
     "$KPT" -t Plasma/Applet -r "$OLD_ID" 2>/dev/null && say "removed the old widget package" || true
 }
