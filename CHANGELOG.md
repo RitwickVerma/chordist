@@ -5,6 +5,13 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Releases are cut by the tag pipeline: it builds the tarball, creates the GitLab release and generates the AUR
+  `PKGBUILD`, `chordist.install` and `.SRCINFO` from `packaging/` (`make aur`), so the AUR copy cannot drift. Every
+  merge request now builds and namcap-checks the Arch package and runs the tests on Python 3.12 to 3.14, Debian
+  trixie and Fedora, and CI lints the QML with the KDE modules installed (no checks switched off).
+
 ### Fixed
 
 - The Arch package now depends on `hicolor-icon-theme`, which owns the icon directory it installs into

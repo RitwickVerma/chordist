@@ -9,9 +9,19 @@ Four layers, from cheapest to most real. `make test` runs the first three; the f
 | QML model | `make test-qml` | `SongModel.qml`: active row and lag, now/next chord, capo and key advice, voicing choice, loop, position extrapolation across a pause, pinning, clamping. Qt 6's `qmltestrunner`, offscreen, a plain object standing in for the MPRIS player. |
 | Real shell | below | `main.qml`, `Compact.qml`, the config page, Mpris wiring |
 
-CI lints the QML in an image that has Qt but not Plasma, so qmllint cannot resolve KDE types there: the pipeline sets
-`QMLLINT_FLAGS` to switch off exactly those categories (`import`, `unresolved-type`, `missing-property`, ...) and keeps
-everything else. `make lint-qml` on a machine with Plasma is the strict version.
+CI runs the same `make` targets (the `qml` job installs Plasma and Kirigami first, so qmllint resolves every KDE type)
+and adds three jobs that are not `make` targets:
+
+- `package-arch` builds the Arch package from the tree as a normal user (`ci/package-arch.sh`), runs namcap (an `E:` fails
+  the job), installs the package, checks `chordist --help` and the plasmoid files, then builds the AUR files for the same
+  tarball and compares the two packages.
+- `python-compat` runs pytest on Python 3.12, 3.13 and 3.14; `debian-trixie` runs pytest, node and qmltestrunner on
+  Debian's Python 3.13, Node 20 and Qt 6.8; `fedora-install` runs `make install`/`uninstall` into a throwaway home
+  (`ci/install-layout.sh`).
+- `release` runs on tags only ([releasing.md](releasing.md)).
+
+To reproduce one, run its script in the image it names, e.g.
+`docker run --rm -v "$PWD":/src -w /src archlinux ci/package-arch.sh`.
 
 ## Screenshots
 

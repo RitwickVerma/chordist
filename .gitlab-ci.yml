@@ -1,10 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Ritwick Verma <verma1997@gmail.com>
+#
 # SPDX-License-Identifier: MIT
-# Everything a container with no compositor can check: licences, ruff, vulture,
-# qmllint, shellcheck, the three test suites (the QML one runs on Qt's offscreen
-# platform) and that the wheel builds with the chord database in it. The jobs run the same `make` targets a local machine runs,
-# so a red pipeline reproduces here. The screenshot harness (`make shots`) and
-# the real-shell check in docs/testing.md need KDE libraries and stay local.
+# Everything a container with no compositor can check: licences, ruff, vulture, qmllint, shellcheck, the three
+# test suites (the QML one runs on Qt's offscreen platform), that the wheel builds with the chord database in it,
+# that the Arch package builds, passes namcap and installs, and that the code still runs on the other Python
+# versions and distributions it claims to support. The jobs run the same `make` targets a local machine runs, so
+# a red pipeline reproduces here. A tag `vX.Y.Z` also cuts the release (docs/releasing.md). The screenshot
+# harness (`make shots`) and the real-shell check in docs/testing.md need a display session and stay local.
 
 # Prebuilt on the runner (ci/Dockerfile) so jobs do not run pacman -Syu each. Override with
 # CHORDIST_CI_IMAGE=archlinux:latest if the image is ever missing; the before_script then installs.
@@ -13,12 +15,13 @@ variables:
 
 image: $CHORDIST_CI_IMAGE
 
-stages: [check, test]
+stages: [check, test, release]
 
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
 
 default:
   before_script:
@@ -35,17 +38,13 @@ python:
   stage: check
   script: [make lint-python, make lint-deadcode]
 
-# The image has Qt but not Plasma or Kirigami, so qmllint cannot resolve those types
-# here. Everything else still counts: syntax, unused imports, signal and property
-# mistakes in our own components. The full check, with the KDE modules, is `make lint`
-# on a machine that has Plasma.
+# The image has Qt but not Plasma or Kirigami; qmllint needs them to resolve the widget's KDE types, so this job
+# installs them (about 1.2 GB, a minute or two; a no-op once the image carries them) and lints strictly.
 qml:
   stage: check
-  variables:
-    QMLLINT_FLAGS: >-
-      --import disable --unresolved-type disable --missing-property disable
-      --incompatible-type disable --unresolved-alias disable --alias-cycle disable --required disable
-  script: [make lint-qml]
+  script:
+    - pacman -Syu --noconfirm --needed --quiet plasma-workspace libplasma kirigami kcmutils
+    - make lint-qml
 
 shell:
   stage: check
@@ -66,3 +65,80 @@ qml-tests:
 build:
   stage: test
   script: [make check-build]
+
+# The Arch package, built from this tree by a normal user, namcap-checked (an E: fails the job), installed and
+# run; then the AUR files for the same tarball, built and compared. See ci/package-arch.sh. Installs the
+# package's own depends (Plasma included) on top of the CI image.
+package-arch:
+  stage: test
+  script: [ci/package-arch.sh]
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - build/aur/PKGBUILD
+      - build/aur/chordist.install
+      - build/aur/.SRCINFO
+      - build/pkg/*.pkg.tar.zst
+      - build/namcap-*.log
+
+# ---- compatibility --------------------------------------------------------------------------------------------
+# The service is standard library only, so a bare Python image plus pytest is the whole environment
+# (and make: one test drives `make install`).
+python-compat:
+  stage: test
+  image: python:$PYTHON-slim
+  before_script: []
+  parallel:
+    matrix:
+      - PYTHON: ["3.12", "3.13", "3.14"]
+  script:
+    - python --version
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends make
+    - pip install --quiet --no-cache-dir 'pytest>=8'
+    - python -m pytest -p no:cacheprovider
+
+# Debian's own Qt 6.8 (qmltestrunner ships in qt6-declarative-dev-tools; the QML modules are packaged apart),
+# Python 3.13 and Node 20: the oldest runtimes the project meets in a mainstream distribution.
+debian-trixie:
+  stage: test
+  image: debian:trixie
+  before_script: []
+  script:
+    - apt-get update -qq
+    - >-
+      apt-get install -y -qq --no-install-recommends make python3 python3-pytest nodejs
+      qt6-declarative-dev-tools qml6-module-qttest qml6-module-qtquick
+    - python3 -m pytest -p no:cacheprovider
+    - make test-js
+    - make test-qml
+
+# `make install` into a throwaway home, with Fedora's own Python, make and kpackagetool6: the file layout, the
+# launcher finding its library under the prefix, and uninstall leaving nothing behind. See ci/install-layout.sh.
+fedora-install:
+  stage: test
+  image: fedora:latest
+  before_script: []
+  script:
+    - dnf install -y -q --setopt=install_weak_deps=False make python3 which kf6-kpackage libplasma
+    - ci/install-layout.sh
+
+# ---- release (tag vX.Y.Z only) --------------------------------------------------------------------------------
+# Runs after every job above is green. Checks the tag against VERSION, builds the tarball from the tagged tree,
+# generates the AUR files for it, and creates the GitLab release with the changelog section as its notes and the
+# tarball as an asset. The tarball is the job's own artifact, kept forever: GitLab's `.../releases/vX.Y.Z/downloads/
+# chordist-X.Y.Z.tar.gz` redirects to it, and that is the URL the AUR package downloads. See ci/release.sh.
+release:
+  stage: release
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
+  resource_group: release
+  interruptible: false
+  script: [ci/release.sh]
+  artifacts:
+    expire_in: never
+    paths:
+      - dist/chordist-*.tar.gz
+      - build/aur/PKGBUILD
+      - build/aur/chordist.install
+      - build/aur/.SRCINFO

@@ -15,8 +15,10 @@ SYSTEMCTL  ?= systemctl --user
 QT_BIN     := /usr/lib/qt6/bin
 VERSION    := $(shell cat VERSION)
 QMLLINT    := $(QT_BIN)/qmllint
-# Extra qmllint switches. Empty locally, where Plasma's QML modules are installed and every type resolves;
-# the CI image has only Qt, and sets this to stop *unresolvable KDE types* from counting as warnings.
+# Extra qmllint switches. Empty: the KDE types resolve wherever Plasma's QML modules are installed (CI installs them
+# for the qml job). On a machine without Plasma, `QMLLINT_FLAGS='--import disable --unresolved-type disable
+# --missing-property disable --incompatible-type disable --unresolved-alias disable --alias-cycle disable
+# --required disable'` stops unresolvable KDE types from counting as warnings.
 QMLLINT_FLAGS ?=
 QMLTEST    := $(QT_BIN)/qmltestrunner
 UV         := uv
@@ -29,7 +31,7 @@ JS_FILES   := $(wildcard applet/contents/js/*.js)
 .NOTPARALLEL:
 .PHONY: help deps install install-service install-applet migrate migrate-panel uninstall doctor status \
         lint lint-reuse lint-python lint-qml lint-shell lint-deadcode \
-        test test-python test-js test-qml coverage shots demo chords-db dist pkgbuild check-build clean
+        test test-python test-js test-qml coverage shots demo chords-db dist pkgbuild aur check-build clean
 
 help: ## Show this help
 	@echo "Chordist"
@@ -102,12 +104,12 @@ lint-qml: ## qmllint over the widget's QML and JS (warnings are errors)
 	$(QMLLINT) -I /usr/lib/qt6/qml --unqualified disable --compiler disable --block-scope-var-declaration disable $(QMLLINT_FLAGS) --max-warnings 0 $(QML_FILES) $(JS_FILES)
 
 lint-shell: ## shellcheck over the launcher and scripts
-	shellcheck bin/chordistd tests/qml/run.sh tests/qml/demo.sh tools/migrate-from-lyricist.sh
+	shellcheck bin/chordistd tests/qml/run.sh tests/qml/demo.sh tools/migrate-from-lyricist.sh ci/*.sh
 	shellcheck -s bash -e SC2034,SC2154 packaging/PKGBUILD
 
 lint-deadcode: ## vulture: Python nothing calls
 	$(UV) run vulture chordist tools tests/python --min-confidence 60 \
-	    --ignore-names 'do_*,log_message,server_version,protocol_version,daemon_threads,allow_reuse_address,xdg,no_network,pytestmark,redirect_request'
+	    --ignore-names 'do_*,log_message,server_version,protocol_version,daemon_threads,allow_reuse_address,xdg,no_network,gitlab,pytestmark,redirect_request'
 
 test: test-python test-js test-qml ## All tests
 
@@ -133,8 +135,12 @@ dist: ## Source tarball of the committed tree (dist/chordist-VERSION.tar.gz)
 
 pkgbuild: dist ## Stage the Arch PKGBUILD and tarball in build/pkg (then: cd build/pkg && makepkg -si)
 	@mkdir -p build/pkg
-	cp packaging/PKGBUILD build/pkg/PKGBUILD
+	cp packaging/PKGBUILD packaging/chordist.install build/pkg/
 	cp dist/chordist-$(VERSION).tar.gz build/pkg/
+
+aur: dist ## The AUR files (PKGBUILD, chordist.install, .SRCINFO) for that tarball in build/aur (needs makepkg)
+	tools/aur-pkgbuild.py --tarball dist/chordist-$(VERSION).tar.gz --out build/aur
+	@echo "push them to ssh://aur@aur.archlinux.org/chordist.git (see docs/releasing.md)"
 
 check-build: ## Build the wheel and check the chord database and entry point are in it
 	rm -rf dist/*.whl

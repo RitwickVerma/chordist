@@ -11,9 +11,10 @@ applet/      the Plasma widget (a KPackage): main.qml is Plasma glue, SongModel.
              the rest are views; js/ holds the pure logic (theory, schedule, tab layout)
 chordist/    the local service (Python, standard library only), `chordist serve`; data/ has the vendored chords-db
 bin/         chordistd, the launcher the systemd unit runs
-packaging/   the systemd user unit
+packaging/   the systemd user unit, the PKGBUILD (the only one: the AUR copy is generated from it) and its .install
+ci/          what the pipeline runs that is not a make target: the image, the Arch package and release scripts
 tests/       python/ (pytest), js/ (node --test), qml/ (qmltestrunner + the screenshot harness)
-tools/       update-chords-db.py
+tools/       update-chords-db.py; aur-pkgbuild.py (AUR files) and gitlab-release.py (tag pipeline)
 docs/        architecture, API, testing
 ```
 
