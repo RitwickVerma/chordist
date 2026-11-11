@@ -122,16 +122,15 @@ def _gone(pid: int) -> bool:
     """Whether ``pid`` no longer runs. A zombie counts as gone: it was killed and only waits to be reaped, and
     when the test process is PID 1 (a container whose shell exec'd pytest) the orphan is reparented to the test
     process itself, which never reaps it, so it stays a zombie for as long as pytest runs."""
+    import contextlib
     import os
 
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return True
-    try:
-        os.waitpid(pid, os.WNOHANG)          # ours to reap only when we are its reaper; harmless otherwise
-    except ChildProcessError:
-        pass
+    with contextlib.suppress(ChildProcessError):   # ours to reap only when we are its reaper; harmless otherwise
+        os.waitpid(pid, os.WNOHANG)
     try:
         with open(f"/proc/{pid}/stat") as stat:
             return stat.read().rsplit(")", 1)[1].split()[0] == "Z"

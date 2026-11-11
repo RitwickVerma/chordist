@@ -41,12 +41,15 @@ QT_QUICK_CONTROLS_STYLE="${QT_QUICK_CONTROLS_STYLE:-org.kde.desktop}" QT_QPA_PLA
     "${QMLTEST:-qmltestrunner}" -input "$work/tst_components.qml" >"$work/out.log" 2>&1 || status=$?
 cat "$work/out.log"
 # A warning while a component loads (a binding that threw, a property that is not there) is a failure too, except
-# for the noise KDE's window-system code makes when there is no display to talk to. Each pattern is that and
-# nothing broader (fixed strings, not patterns).
+# for the noise KDE's code makes when there is no session to talk to: no display or window system, no icon theme
+# configured (qqc2-desktop-style resolves icons through KIconThemes), no spell-checking dictionary installed (its
+# text fields ask Sonnet for one). Each pattern is that and nothing broader (fixed strings, not patterns).
 noise=(
     'kf.windowsystem: Could not find any platform plugin'
     'Failed to create wl_display'
     'QObject::installEventFilter(): Cannot filter events for objects in a different thread'
+    'kf.iconthemes: Icon theme "breeze-internal" not found.'
+    'kf.sonnet.core: Sonnet: No speller backends available!'
 )
 printf '%s\n' "${noise[@]}" >"$work/noise.txt"
 if grep -E '^(QWARN|QCRITICAL|QFATAL)' "$work/out.log" | grep -v -F -f "$work/noise.txt" >"$work/warnings.log"; then
