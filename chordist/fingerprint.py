@@ -20,12 +20,13 @@ import json
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
 from typing import Any
 
 from .cache import DiskCache, key_for
-from .config import Config
+from .config import Config, clamp_seconds
 
 log = logging.getLogger("chordist.fingerprint")
 
@@ -35,17 +36,30 @@ class FingerprintError(RuntimeError):
 
 
 def _run(argv: list[str], timeout: float) -> subprocess.CompletedProcess:
+    """Run a program to completion, or kill it, and everything it started, when it overstays ``timeout``.
+
+    It gets a session of its own, so the whole group can be killed: ``subprocess.run`` kills only the direct
+    child, and the recorder runs behind ``timeout(1)``, whose own death would leave pw-record recording on.
+    """
     try:
-        return subprocess.run(
+        proc = subprocess.Popen(
             argv,
-            capture_output=True,
-            timeout=timeout,
-            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
         )
     except FileNotFoundError as exc:
         raise FingerprintError(f"{argv[0]} not found") from exc
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
+        proc.communicate()
         raise FingerprintError(f"{argv[0]} timed out") from exc
+    return subprocess.CompletedProcess(argv, proc.returncode, stdout, stderr)
 
 
 def default_monitor() -> str:
@@ -66,25 +80,42 @@ def capture(seconds: float, path: str) -> str:
     if not recorder:
         raise FingerprintError("pw-record not found")
     argv = [
-        "timeout", "-s", "INT", str(int(seconds)),
+        # SIGINT lets pw-record finish the WAV header; -k 3 makes sure a recorder that ignores it still dies.
+        "timeout", "-k", "3", "-s", "INT", str(clamp_seconds(seconds)),
         recorder,
         "--target", default_monitor(),
         "--rate", "16000", "--channels", "1", "--format", "s16",
         path,
     ]
-    # ``timeout`` intentionally kills the recorder (SIGINT lets it finalise the
-    # WAV header), so a non-zero exit here is the expected path.
-    _run(argv, seconds + 10)
+    # ``timeout`` intentionally interrupts the recorder, so a non-zero exit here is the expected path.
+    _run(argv, clamp_seconds(seconds) + 10)
     if not os.path.exists(path) or os.path.getsize(path) < 4096:
         raise FingerprintError("capture produced no audio")
     return path
 
 
-def _songrec(config: Config) -> str:
+# A systemd user service starts with a bare PATH, and SongRec is mostly installed with cargo or by hand, which
+# puts it in one of these two directories rather than in /usr/bin.
+EXTRA_SONGREC_DIRS = ("~/.cargo/bin", "~/.local/bin")
+
+
+def find_songrec(config: Config) -> str | None:
+    """The SongRec to run: ``songrec_path`` if it exists, else the first on PATH, ~/.cargo/bin or ~/.local/bin."""
     configured = str(config.get("songrec_path", "") or "").strip()
     if configured and os.path.exists(configured):
         return configured
     found = shutil.which("songrec")
+    if found:
+        return found
+    for directory in EXTRA_SONGREC_DIRS:
+        candidate = os.path.join(os.path.expanduser(directory), "songrec")
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
+def _songrec(config: Config) -> str:
+    found = find_songrec(config)
     if not found:
         raise FingerprintError("songrec not installed")
     return found
@@ -149,7 +180,7 @@ def identify(
 
     identity: dict[str, Any] | None = None
     try:
-        secs = float(seconds) if seconds is not None else float(config.get("fingerprint_seconds", 6) or 6)
+        secs = clamp_seconds(seconds if seconds is not None else config.get("fingerprint_seconds", 6))
         with tempfile.TemporaryDirectory(prefix="chordist-fp-") as tmp:
             wav = capture(secs, os.path.join(tmp, "capture.wav"))
             identity = recognize(wav, config)

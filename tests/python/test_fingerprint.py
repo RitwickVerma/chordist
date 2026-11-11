@@ -113,19 +113,73 @@ def test_the_songrec_path_in_the_config_wins_over_path(monkeypatch, tmp_path):
         fingerprint._songrec(Config({"songrec_path": str(tmp_path / "nope")}))
 
 
-def test_a_program_that_is_not_there_or_hangs_is_reported(monkeypatch):
-    import subprocess
-
-    def missing(*a, **k):
-        raise FileNotFoundError
-
-    monkeypatch.setattr(subprocess, "run", missing)
+def test_a_program_that_is_not_there_is_reported():
     with pytest.raises(fingerprint.FingerprintError, match="not found"):
-        fingerprint._run(["nope"], 1)
+        fingerprint._run(["/nonexistent/program"], 1)
 
-    def hangs(*a, **k):
-        raise subprocess.TimeoutExpired("x", 1)
 
-    monkeypatch.setattr(subprocess, "run", hangs)
+def _gone(pid: int) -> bool:
+    """Whether ``pid`` no longer runs. A zombie counts as gone: it was killed and only waits to be reaped, and
+    when the test process is PID 1 (a container whose shell exec'd pytest) the orphan is reparented to the test
+    process itself, which never reaps it, so it stays a zombie for as long as pytest runs."""
+    import contextlib
+    import os
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    with contextlib.suppress(ChildProcessError):   # ours to reap only when we are its reaper; harmless otherwise
+        os.waitpid(pid, os.WNOHANG)
+    try:
+        with open(f"/proc/{pid}/stat") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] == "Z"
+    except (FileNotFoundError, ProcessLookupError):
+        return True
+
+
+def test_a_program_that_hangs_is_killed_with_everything_it_started(tmp_path):
+    """timeout(1) -> pw-record: killing only the direct child would leave the recorder running."""
+    import os
+    import time
+
+    pidfile = tmp_path / "grandchild.pid"
+    # The grandchild does not hold the output pipes: one that did would keep communicate() reading until it
+    # exited by itself, and the test would pass whether or not anything killed it.
+    script = f"sleep 60 >/dev/null 2>&1 </dev/null & echo $! > {pidfile}; wait"
+    started = time.monotonic()
     with pytest.raises(fingerprint.FingerprintError, match="timed out"):
-        fingerprint._run(["slow"], 1)
+        fingerprint._run(["sh", "-c", script], 1)
+    assert time.monotonic() - started < 10, "the timeout did not cut the program short"
+    pid = int(pidfile.read_text())
+    for _ in range(50):
+        if _gone(pid):
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(pid, 9)
+        pytest.fail("the grandchild was left running")
+
+
+def test_the_recording_length_is_clamped_where_it_is_used(tools):
+    fingerprint.identify(cfg(), "a", "b", seconds=0)
+    record = next(c for c in tools.calls if c[0] == "timeout")
+    assert record[:4] == ["timeout", "-k", "3", "-s"] and record[record.index("INT") + 1] == "1"
+    tools.calls.clear()
+    fingerprint.identify(cfg(), "c", "d", seconds=600)
+    record = next(c for c in tools.calls if c[0] == "timeout")
+    assert record[record.index("INT") + 1] == "30"
+
+
+def test_songrec_is_also_looked_for_in_cargo_and_local_bin(monkeypatch, tmp_path):
+    monkeypatch.setattr(fingerprint.shutil, "which", lambda name: None)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert fingerprint.find_songrec(Config()) is None
+    for directory in (".local/bin", ".cargo/bin"):
+        (tmp_path / directory).mkdir(parents=True)
+        binary = tmp_path / directory / "songrec"
+        binary.write_text("#!/bin/sh")
+        binary.chmod(0o755)
+        assert fingerprint.find_songrec(Config()) == str(binary)          # ~/.cargo/bin is tried first
+    (tmp_path / ".cargo/bin/songrec").chmod(0o644)                         # not executable: skipped
+    assert fingerprint.find_songrec(Config()) == str(tmp_path / ".local/bin/songrec")

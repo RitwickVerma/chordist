@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -122,6 +123,69 @@ def test_the_panel_slot_moves_to_the_new_widget_and_keeps_its_settings(home):
     assert "container 138 applet 144" in out
 
 
+def _panel_stubs(home: Path, systemd_active: bool) -> dict[str, str]:
+    """An environment where plasmashell, kquitapp6, kstart and systemctl are recorders, never the real ones."""
+    bin_dir = home / "stubs"
+    bin_dir.mkdir()
+    log = home / "calls.log"
+    for name in ("kquitapp6", "kstart"):
+        (bin_dir / name).write_text(f'#!/bin/sh\necho "{name} $*" >> "{log}"\n')
+    (bin_dir / "pgrep").write_text("#!/bin/sh\nexit 1\n")        # the shell is "gone" at once
+    (bin_dir / "systemctl-stub").write_text(
+        f'#!/bin/sh\necho "systemctl $*" >> "{log}"\n'
+        + ('exit 0\n' if systemd_active else 'case "$*" in *is-active*) exit 3 ;; esac\n')
+    )
+    (bin_dir / "failing-kwriteconfig6").write_text("#!/bin/sh\nexit 1\n")
+    for stub in bin_dir.iterdir():
+        stub.chmod(0o755)
+    return {
+        "HOME": str(home), "PATH": f"{bin_dir}:{os.environ['PATH']}", "SYSTEMCTL": str(bin_dir / "systemctl-stub"),
+        "RESTART_SHELL": "yes", "KPT": "true", "XDG_CONFIG_HOME": str(home / ".config"),
+        "XDG_DATA_HOME": str(home / ".local/share"), "XDG_CACHE_HOME": str(home / ".cache"),
+    }
+
+
+def _calls(home: Path) -> list[str]:
+    log = home / "calls.log"
+    return log.read_text().splitlines() if log.exists() else []
+
+
+def test_a_missing_kwriteconfig6_is_found_out_before_the_shell_is_stopped(home):
+    rc = home / ".config/plasma-org.kde.plasma.desktop-appletsrc"
+    rc.write_text(APPLETSRC)
+    env = _panel_stubs(home, systemd_active=False) | {"KWRITECONFIG": "/nonexistent/kwriteconfig6"}
+    done = subprocess.run(["bash", str(SCRIPT), "panel"], env=env, capture_output=True, text=True, check=False)
+    assert done.returncode != 0
+    assert "kwriteconfig6 not found" in done.stdout
+    assert _calls(home) == []                      # plasmashell was never touched
+    assert rc.read_text() == APPLETSRC
+
+
+def test_the_shell_comes_back_when_rewriting_the_panel_fails(home):
+    rc = home / ".config/plasma-org.kde.plasma.desktop-appletsrc"
+    rc.write_text(APPLETSRC)
+    env = _panel_stubs(home, systemd_active=False) | {"KWRITECONFIG": str(home / "stubs/failing-kwriteconfig6")}
+    done = subprocess.run(["bash", str(SCRIPT), "panel"], env=env, capture_output=True, text=True, check=False)
+    assert done.returncode != 0
+    for _ in range(50):                            # kstart is started in the background and may still be landing
+        if "kstart plasmashell" in _calls(home):
+            break
+        time.sleep(0.1)
+    calls = _calls(home)
+    assert calls.index("kquitapp6 plasmashell") < calls.index("kstart plasmashell")    # stopped, then restarted
+
+
+def test_a_systemd_managed_shell_is_stopped_and_started_through_systemd(home):
+    rc = home / ".config/plasma-org.kde.plasma.desktop-appletsrc"
+    rc.write_text(APPLETSRC)
+    env = _panel_stubs(home, systemd_active=True) | {"KWRITECONFIG": str(home / "stubs/failing-kwriteconfig6")}
+    subprocess.run(["bash", str(SCRIPT), "panel"], env=env, capture_output=True, text=True, check=False)
+    calls = _calls(home)
+    assert "systemctl stop plasma-plasmashell.service" in calls
+    assert calls.index("systemctl stop plasma-plasmashell.service") < calls.index("systemctl start plasma-plasmashell.service")
+    assert not any(call.startswith(("kquitapp6", "kstart")) for call in calls)      # Restart=always cannot race us
+
+
 def test_a_panel_without_the_old_widget_is_left_alone(home):
     rc = home / ".config/plasma-org.kde.plasma.desktop-appletsrc"
     rc.write_text("[Containments][1][Applets][2]\nplugin=org.kde.plasma.digitalclock\n")
@@ -131,6 +195,7 @@ def test_a_panel_without_the_old_widget_is_left_alone(home):
     assert not list(home.glob(".config/*.bak-chordist-*"))
 
 
+@pytest.mark.skipif(shutil.which("make") is None, reason="needs make")
 def test_install_moves_the_data_before_the_service_starts_even_under_make_j(home):
     """With -j, make would run the steps at once and start the service on empty defaults."""
     spy = home / "systemctl-spy"

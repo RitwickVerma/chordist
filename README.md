@@ -47,7 +47,14 @@ The pictures are headless renders against a fixture service (`make shots`), not 
 
 ## Install
 
-Needs KDE Plasma 6 and Python 3.12+.
+Needs KDE Plasma 6 and Python 3.12+ (`make deps` tells you what your machine is missing and prints the install line
+for Arch, Debian and Ubuntu, Fedora or openSUSE).
+
+Tested on Qt 6.8 to 6.12 with Kirigami 6.13 to 6.31: every widget component loads and the tests pass at both ends
+(Debian 13 is the old end, Arch the new), and the widget runs in a Plasma 6.8 shell. Plasma shells older than 6.8 have
+not been tried. The widget reads the player through `org.kde.plasma.private.mpris`, a *private*
+Plasma API: it is not covered by KDE's compatibility promises, so a future Plasma may need a release of Chordist
+to follow it.
 
 **Arch Linux**
 
@@ -62,7 +69,7 @@ systemctl --user restart plasma-plasmashell
 
 ```sh
 git clone https://gitlab.com/ritwick7/chordist.git && cd chordist
-make deps        # what is missing, and the pacman line to fix it
+make deps        # what is missing, and the install line for your distribution
 make install     # widget + service + systemd user unit; starts the service
 systemctl --user restart plasma-plasmashell     # loads the widget
 ```
@@ -114,10 +121,28 @@ back. `chordist config` prints the effective values.
 | `ug_enabled` | `true` | `false` makes it fully offline apart from lyrics |
 | `romanise` | `"auto"` | `"always"`, `"never"` |
 | `fingerprint_enabled` | `true` | identify a track from its audio when its metadata is junk, see [SECURITY.md](SECURITY.md) |
+| `fingerprint_seconds` | `6` | how much audio to record for that, kept between 1 and 30 |
+| `songrec_path` | `""` | the SongRec program, when it is not where Chordist looks (see below) |
 | `min_request_interval` | `1.6` | seconds between requests to one host |
 | `negative_ttl_seconds` / `lyrics_negative_ttl_seconds` | 3 days / 6 hours | how long "nothing found" is remembered (**Ask again** looks past it) |
 
 Your own charts live in `~/.local/share/chordist/chords/` as ChordPro files; `chordist local list|add|rm` manages them.
+
+### Identifying a song from its audio (SongRec)
+
+When a player's title and artist cannot be matched, Chordist records a few seconds of what is playing (`pw-record` and
+`pactl`, from PipeWire and PulseAudio's tools) and asks [SongRec](https://github.com/marin-m/SongRec). SongRec is
+optional and a separate program. Arch packages it (`pacman -S songrec`). Debian, Ubuntu, Fedora and openSUSE do not;
+follow its [installation instructions](https://github.com/marin-m/SongRec#installation) (building it with
+`cargo install songrec` puts it in `~/.cargo/bin`). Chordist looks for `songrec` on `PATH`, then in `~/.cargo/bin`
+and `~/.local/bin` (a service started by systemd has a short `PATH`). If it lives somewhere else, give its full path
+in `~/.config/chordist/config.json`:
+
+```json
+{ "songrec_path": "/opt/songrec/bin/songrec" }
+```
+
+`chordist doctor` prints the path it settled on, or says it found none.
 
 ## Privacy
 
@@ -146,7 +171,10 @@ responsibility: `"ug_enabled": false` turns it off and leaves lyrics (LRCLIB) an
   and your own charts do not depend on it.
 - The strumming pattern is not drawn (Ultimate Guitar stores it in a private code); only its tempo is used.
 - The interface is in English; the strings are wrapped for translation but no translations exist yet.
-- Wayland cannot let an application keep itself above other windows; use KWin's "Keep above".
+- Wayland cannot let an application keep itself above other windows, so the floating window is only kept on top
+  under X11; under Wayland use KWin's "Keep above" (the window's title-bar menu).
+- If `systemctl --user status chordistd` says `status=226/NAMESPACE`, the kernel does not allow unprivileged user
+  namespaces and the unit's sandbox cannot start: see [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Built on
 

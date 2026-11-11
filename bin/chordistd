@@ -20,7 +20,8 @@ if [[ -d "$here/../chordist" ]]; then
 elif [[ -d "$here/../lib/chordist/chordist" ]]; then
     root="$(cd "$here/../lib/chordist" && pwd)"   # installed under a prefix
 else
-    root="${CHORDIST_LIB:-$HOME/.local/lib/chordist}"
+    # Not in a checkout and not under a prefix: the default install. HOME can be unset in a minimal environment.
+    root="${CHORDIST_LIB:-${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}/.local/lib/chordist}"
 fi
 
 export PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}"

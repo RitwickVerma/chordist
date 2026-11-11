@@ -28,11 +28,15 @@ Item {
     readonly property int fontDelta: applet ? applet.fontSizeOffset : 0
     readonly property bool tabOnly: !!(applet && applet.chartKind === "tab")
 
+    // The user's fixed-width font. Kirigami.Theme.fixedWidthFont is KDE Frameworks 6.14 and later; before that
+    // the property is undefined, and the system's "monospace" stands in.
+    readonly property font monoFont: Kirigami.Theme.fixedWidthFont !== undefined ? Kirigami.Theme.fixedWidthFont
+        : Qt.font({ family: "monospace", pointSize: Kirigami.Theme.defaultFont.pointSize })
     // A QML font is a value type: mutating a copy of a theme font is thrown away
     // before it reaches the Text, so build a fresh one.
     readonly property font chartFont: Qt.font({
-        family: Kirigami.Theme.fixedWidthFont.family,
-        pointSize: Math.max(1, Kirigami.Theme.fixedWidthFont.pointSize + fontDelta)
+        family: monoFont.family,
+        pointSize: Math.max(1, monoFont.pointSize + fontDelta)
     })
     TextMetrics { id: charMetrics; font: view.chartFont; text: "0" }
 

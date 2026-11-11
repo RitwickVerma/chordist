@@ -80,6 +80,13 @@ def _render_shapes(names: list[str], color: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _nothing_found(kind: str, artist: str, title: str, result: dict[str, Any]) -> int:
+    """Say so on stderr and fail, so a script can tell "no chart" from a chart (the JSON, if asked for, is on stdout)."""
+    reason = result.get("error") or "nothing came back"
+    print(f"chordist: no {kind} found for {artist} - {title}: {reason}", file=sys.stderr)
+    return 1
+
+
 def _doctor(config: Config) -> int:
     """Print what the service can and cannot do on this machine."""
     import shutil
@@ -107,8 +114,16 @@ def _doctor(config: Config) -> int:
     if config.get("fingerprint_enabled", True):
         for tool in ("pw-record", "pactl"):
             report(bool(shutil.which(tool)), f"{tool} on PATH", hint="needed to listen to the audio when metadata is junk")
-        songrec = str(config.get("songrec_path") or "") or shutil.which("songrec")
-        report(bool(songrec), "songrec", str(songrec or ""), hint="not installed: audio identification is skipped")
+        from .fingerprint import find_songrec
+
+        configured = str(config.get("songrec_path") or "").strip()
+        songrec = find_songrec(config)
+        if configured and songrec != configured:
+            report(False, "songrec_path", configured, hint="there is no such file, so PATH is searched instead")
+        report(
+            bool(songrec), "songrec", str(songrec or ""),
+            hint="not installed: audio identification is skipped (see the README for how to install it)",
+        )
     else:
         report(True, "audio identification", "disabled in the config")
     return 1 if problems else 0
@@ -186,28 +201,30 @@ def main(argv: list[str] | None = None) -> int:
         from .lyrics import LyricsProvider
 
         result = LyricsProvider(config, throttle).lookup(args.artist, args.title, args.album, args.duration)
+        missing = result.get("source") == "none"
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
-        else:
+        elif not missing:
             print(f"{result.get('artist')} - {result.get('track')}")
             print(f"source {result.get('source')}  synced {bool(result.get('synced'))}")
             print()
             for line in result.get("lines", []):
                 stamp = f"{line['t']:7.2f}" if line.get("t") is not None else "      -"
                 print(f"{stamp}  {line.get('text', '')}")
-        return 0
+        return _nothing_found("lyrics", args.artist, args.title, result) if missing else 0
 
     if args.command == "chords":
         from .chords import ChordProvider
 
         result = ChordProvider(config, throttle).lookup(args.artist, args.title, args.duration)
+        missing = result.get("source") == "none" or not result.get("sections")
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
-        else:
+        elif not missing:
             print(_render_chart(result))
             if result.get("url"):
                 print(result["url"])
-        return 0
+        return _nothing_found("chords", args.artist, args.title, result) if missing else 0
 
     if args.command == "shapes":
         if args.json:

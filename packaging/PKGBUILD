@@ -1,10 +1,14 @@
 # Maintainer: Ritwick Verma <verma1997@gmail.com>
 #
-# Build from a checkout:  make dist && cd build/pkg && makepkg -si
-# (`make pkgbuild` stages this file next to the source tarball.)
+# Build from a checkout:  make pkgbuild && cd build/pkg && makepkg -si
+# (`make pkgbuild` stages this file, chordist.install and the source tarball together.)
+#
+# The AUR package is generated from this file (`make aur`, tools/aur-pkgbuild.py): it swaps `source` and
+# `sha256sums` for the release download and its checksum. Keep both as single lines, and change `package()`
+# and `depends` here only.
 
 pkgname=chordist
-pkgver=2.0.0
+pkgver=2.0.1
 pkgrel=1
 pkgdesc='Guitar companion for KDE Plasma: live chords, tabs, lyrics and fingerings for whatever is playing'
 arch=('any')
@@ -16,6 +20,7 @@ optdepends=(
   'pipewire-audio: record the output for songrec (pw-record)'
   'libpulse: find the default output for songrec (pactl)'
 )
+install=chordist.install
 source=("$pkgname-$pkgver.tar.gz")
 sha256sums=('SKIP')
 

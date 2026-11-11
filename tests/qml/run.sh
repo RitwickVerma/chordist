@@ -25,11 +25,9 @@ failed=0
 
 # The widget uses KDE's i18n(), which only the Plasma shell provides; swap in a
 # shim that substitutes %1... so every string still renders.
-cp -r "$root/applet" "$work/applet"
-cp "$root/tests/qml/harness/i18nshim.js" "$work/applet/contents/ui/"
-while IFS= read -r file; do
-    sed -i -e 's/\bi18n(/I18N.t(/g' -e '0,/^import QtQuick$/s//import QtQuick\nimport "i18nshim.js" as I18N/' "$file"
-done < <(grep -rl 'i18n(' "$work/applet/contents/ui")
+# shellcheck source=/dev/null
+source "$root/tests/qml/harness/shim.sh"
+shim_applet "$root" "$work"
 cp "$root/tests/qml/harness/Shots.qml" "$work/Shots.qml"
 
 python3 -I "$root/tests/qml/fixture_service.py" "$port" "$work/state" >"$work/service.log" 2>&1 &

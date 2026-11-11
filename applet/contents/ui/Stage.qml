@@ -86,7 +86,7 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                     text: i18n("Preview")
                     highlighted: true
-                    interactive: true
+                    clickable: true
                     tip: i18n("You tapped this chord in the chart. Click to go back to the song.")
                     onClicked: stage.applet.previewChordNamed("")
                 }

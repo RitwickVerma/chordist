@@ -37,7 +37,7 @@ Flow {
     // The capo calculator's suggestion: one click applies it.
     InfoChip {
         visible: !!strip.advice
-        interactive: true
+        clickable: true
         highlighted: true
         icon.name: "tools-wizard"
         text: strip.advice ? i18n("Easier: capo %1 → %2", strip.advice.capo,
@@ -58,7 +58,9 @@ Flow {
     }
     InfoChip {
         visible: !!meta.bpm
-        text: i18n("♩ %1 bpm", meta.bpm)
+        // Guarded, not just hidden: the binding runs while bpm is unset, and i18n logs every call that is
+        // missing an argument ("kf.i18n: 0 instead of 1 arguments").
+        text: meta.bpm ? i18n("♩ %1 bpm", meta.bpm) : ""
         tip: i18n("Tempo from the strumming pattern")
     }
     InfoChip {

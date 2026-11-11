@@ -74,10 +74,10 @@ PlasmoidItem {
     // popup's menu, or straight from a click on the panel item when "Floating
     // window" is set in the settings.
     //
-    // Staying above other windows is not something a Wayland client can ask for
-    // (Qt's WindowStaysOnTopHint is ignored under xdg-shell), so that is KDE's
-    // business: Keep Above from the title-bar menu, or a window rule to make it
-    // stick.
+    // Staying above other windows is something an X11 client can ask for (Qt's
+    // WindowStaysOnTopHint, set below) but a Wayland one cannot (xdg-shell has no
+    // such request), so there it is KDE's business: Keep Above from the title-bar
+    // menu, or a window rule to make it stick.
     property bool windowVisible: false
     function toggleWindow() { windowVisible = !windowVisible }
     // Opening is the moment to put the tab back where the user wants it: the
@@ -105,7 +105,7 @@ PlasmoidItem {
     Window {
         id: floating
         visible: root.windowVisible
-        flags: Qt.Window
+        flags: Qt.Window | (Qt.platform.pluginName === "xcb" ? Qt.WindowStaysOnTopHint : 0)
         title: song.ready ? (song.artist ? song.track + " — " + song.artist + " — Chordist" : song.track + " — Chordist") : "Chordist"
         color: Kirigami.Theme.backgroundColor
         width: Kirigami.Units.gridUnit * 32
