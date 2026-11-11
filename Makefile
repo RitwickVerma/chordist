@@ -118,7 +118,7 @@ lint-qml: ## qmllint over the widget's QML and JS (warnings are errors)
 	$(QMLLINT) -I $(QT_QML) --unqualified disable --compiler disable $(QMLLINT_BLOCK_SCOPE) $(QMLLINT_FLAGS) --max-warnings 0 $(QML_FILES) $(JS_FILES)
 
 lint-shell: ## shellcheck over the launcher and scripts
-	shellcheck bin/chordistd tests/qml/run.sh tests/qml/demo.sh tools/migrate-from-lyricist.sh tools/deps.sh ci/*.sh
+	shellcheck bin/chordistd tests/qml/run.sh tests/qml/demo.sh tests/qml/components.sh tests/qml/harness/shim.sh tools/migrate-from-lyricist.sh tools/deps.sh ci/*.sh
 	shellcheck -s bash -e SC2034,SC2154 packaging/PKGBUILD
 
 lint-deadcode: ## vulture: Python nothing calls
@@ -136,8 +136,9 @@ coverage: ## Python test coverage, with the lines no test reaches
 test-js: ## node: the widget's pure JS (theory, schedule, tab layout)
 	node --test tests/js/*.test.mjs
 
-test-qml: ## qmltestrunner: the song model's logic
+test-qml: ## qmltestrunner: the song model's logic, and that every component loads on the installed Qt and KDE stack
 	QT_QPA_PLATFORM=offscreen $(QMLTEST) -input tests/qml/tst_songmodel.qml
+	QMLTEST=$(QMLTEST) tests/qml/components.sh
 
 shots: ## Render the widget headless against a fixture service (build/shots)
 	tests/qml/run.sh build/shots
