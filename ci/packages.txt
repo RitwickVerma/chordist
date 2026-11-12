@@ -1,1 +1,1 @@
-git make reuse python uv nodejs shellcheck qt6-declarative
+git make reuse python uv nodejs shellcheck qt6-declarative plasma-workspace libplasma kirigami kcmutils qqc2-desktop-style ttf-dejavu
