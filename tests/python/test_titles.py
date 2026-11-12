@@ -71,3 +71,9 @@ def test_tokens_are_lowercase_words_without_punctuation():
 
 def test_split_segments_keeps_order_and_drops_empties():
     assert titles.split_segments("A | B - C /  ") == ["A", "B", "C"]
+
+
+def test_meaningful_words_leave_out_the_platform_and_the_decoration():
+    assert titles.meaningful("YouTube") == []
+    assert titles.meaningful("Official Audio - Lyrics Video") == []
+    assert titles.meaningful("Judaai - Full Audio Song | Badlapur") == ["judaai", "badlapur"]

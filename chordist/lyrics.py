@@ -318,6 +318,11 @@ class LyricsProvider:
     def _headers(self) -> dict[str, str]:
         return {"User-Agent": user_agent(self.contact)}
 
+    @staticmethod
+    def clean_name(text: str) -> str:
+        """``clean`` as a method, for callers that hold a provider rather than this module."""
+        return clean(text)
+
     def by_id(self, lyrics_id: Any) -> dict[str, Any] | None:
         """One specific LRCLIB entry, for when the automatic match picked wrong."""
         try:

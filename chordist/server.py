@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from . import __version__, align, identity, shapes, translit
+from . import __version__, align, identity, shapes, titles, translit
 from .chords import ChordProvider
 from .config import Config
 from .http import Throttle
@@ -198,6 +198,7 @@ class Service:
         lyrics_id: Any = None,
         chord_url: Any = None,
         refresh: bool = False,
+        allow_fingerprint: bool = True,
     ) -> tuple[dict[str, Any], dict[str, Any], bool, dict[str, Any] | None]:
         """Lyrics and chart for one song, with the script decision applied.
 
@@ -205,6 +206,8 @@ class Service:
         and both providers run on that answer, so they can never disagree about
         which song is playing.  When both a lyrics id and a chord url are
         hand-picked they already name the song, so it is not second-guessed.
+        ``allow_fingerprint=False`` keeps the audio capture out of it (the
+        player is paused: there is nothing to record).
         """
         with self._locks.hold("song", artist, title, album, str(lyrics_id or ""), str(chord_url or "")):
             if lyrics_id and chord_url:
@@ -213,7 +216,8 @@ class Service:
                 # One pin leaves the other half of the song still to find, and
                 # that search wants the real artist and title, not the metadata.
                 canonical = identity.resolve(
-                    self.config, self.lyrics, artist, title, duration, album
+                    self.config, self.lyrics, artist, title, duration, album,
+                    allow_fingerprint=allow_fingerprint,
                 )
 
             if canonical:
@@ -264,7 +268,17 @@ class Service:
         lyrics_id: Any = None,
         chord_url: Any = None,
         refresh: bool = False,
+        playing: bool = True,
     ) -> dict[str, Any]:
+        """Everything for one song.
+
+        ``lyrics_id`` and ``chord_url`` of ``None`` mean "not said": the song's
+        remembered picks apply. An empty string is an explicit "none", so a
+        caller that has just un-pinned is not handed the old pin back by a
+        preference file that has not caught up. ``playing=False`` keeps the
+        audio capture out of the identification: a paused player has nothing
+        to record.
+        """
         if not title:
             return {
                 "error": "missing title",
@@ -272,9 +286,31 @@ class Service:
                 "chords": {"source": "none", "sections": []},
                 "prefs": {},
             }
+        # A browser tab called "YouTube" or "(2) Audio" is the site, not a song: with no word to look for in
+        # either field, every lookup would only find somebody else's upload of the same length.
+        if not titles.meaningful(self.lyrics.clean_name(title)) and not titles.meaningful(self.lyrics.clean_name(artist)):
+            return {
+                "error": "no song in the title",
+                "query": {"artist": artist, "title": title, "album": album, "duration": duration},
+                "lyrics": {"source": "none", "error": "no song in the title"},
+                "chords": {"source": "none", "sections": [], "error": "no song in the title"},
+                "shapes": {},
+                "variations": {},
+                "transpose": 0,
+                "romanised": False,
+                "resolved": None,
+                "prefs": {},
+            }
+
+        prefs = self.prefs.get(artist, title)
+        if lyrics_id is None:
+            lyrics_id = prefs.get("lyrics_id") or None
+        if chord_url is None:
+            chord_url = prefs.get("chord_url") or None
 
         lyrics, chart, romanised, canonical = self._prepare_lyrics(
-            artist, title, album, duration, romanise, lyrics_id, chord_url, refresh
+            artist, title, album, duration, romanise, lyrics_id or None, chord_url or None, refresh,
+            allow_fingerprint=playing,
         )
 
         # The canonical identity is what the lyrics and the chart were both
@@ -307,7 +343,7 @@ class Service:
             "resolved": resolved,
             # What the user chose last time: timing offset, transpose, capo and
             # any hand-picked lyrics entry or tab.
-            "prefs": self.prefs.get(artist, title),
+            "prefs": prefs,
         }
 
     def get_lyrics(
@@ -448,7 +484,8 @@ class Handler(BaseHTTPRequestHandler):
         self._send({"error": str(exc)}, status=exc.status)
 
     def _query(self) -> dict[str, str]:
-        return {key: values[0] for key, values in parse_qs(urlparse(self.path).query).items()}
+        # Blank values are kept: "lyrics_id=" says "none", which is not the same as not saying.
+        return {key: values[0] for key, values in parse_qs(urlparse(self.path).query, keep_blank_values=True).items()}
 
     def _guard(self, writing: bool) -> None:
         """Refuse requests that did not come from this machine's own software.
@@ -519,6 +556,7 @@ class Handler(BaseHTTPRequestHandler):
                 q.get("artist", ""), q.get("title", ""), q.get("album", ""),
                 _as_float(q.get("duration")), q.get("romanise"), q.get("lyrics_id"), q.get("chord_url"),
                 refresh=q.get("refresh") == "1",
+                playing=q.get("playing", "1") != "0",
             )
 
         def lyrics(q: dict[str, str]) -> Any:

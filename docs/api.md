@@ -10,7 +10,7 @@ Requests from a non-loopback `Host`, with any `Origin` that is not loopback (inc
 | Request | Returns |
 | --- | --- |
 | `GET /api/health` | `{ok, version, port, sources, ug_enabled, contact_configured, local_charts, uptime_seconds}` |
-| `GET /api/song?artist=&title=&album=&duration=[&romanise=0\|1][&lyrics_id=][&chord_url=][&refresh=1]` | everything for a song, below; `refresh=1` looks past remembered misses |
+| `GET /api/song?artist=&title=&album=&duration=[&romanise=0\|1][&lyrics_id=][&chord_url=][&refresh=1][&playing=0]` | everything for a song, below; `refresh=1` looks past remembered misses; `playing=0` says the player is paused, so no audio is recorded to identify the track |
 | `GET /api/lyrics?…` | just the lyrics object |
 | `GET /api/chords?artist=&title=&duration=[&chord_url=]` | just the chart |
 | `GET /api/versions?artist=&title=&album=&duration=` | `{lyrics: [...], charts: [...]}` candidates for the "wrong version" chooser |
@@ -20,8 +20,12 @@ Requests from a non-loopback `Host`, with any `Origin` that is not loopback (inc
 | `GET /api/config` | the effective configuration |
 
 `chord_url` must be an `https://*.ultimate-guitar.com` address; anything else is ignored. A pinned `lyrics_id` or
-`chord_url` that will not load falls back to the automatic pick and the answer carries `pin_failed: true`. Misses (no
-lyrics, no chart) are remembered for a while; being unable to reach a site is not a miss and is never remembered.
+`chord_url` that will not load falls back to the automatic pick and the answer carries `pin_failed: true`. A request
+that does not mention `lyrics_id` or `chord_url` at all gets the song's remembered picks (`POST /api/prefs`); one
+that sends them empty (`lyrics_id=&chord_url=`) says "none", and blank query values are kept apart from absent ones
+for that reason. Misses (no lyrics, no chart) are remembered for a while; being unable to reach a site is not a miss
+and is never remembered. A title with no word a song could be known by ("YouTube", "Official Audio") is answered
+with nothing and `error: "no song in the title"`, without any lookup.
 
 ### `/api/song`
 

@@ -101,6 +101,15 @@ def subset(context: str, phrase: str) -> bool:
     return all(fold(word) in known for word in meaningful)
 
 
+def meaningful(text: str) -> list[str]:
+    """The words of ``text`` a song could be recognised by: not stop words, not version or platform words.
+
+    "YouTube" has none (a tab with that title is the site's front page, not a song, and nothing found by name
+    for it can be right), nor has "Full Audio Song".
+    """
+    return [t for t in tokens(text) if t not in _STOP_WORDS and t not in _VERSION_WORDS and t not in _NOISE_WORDS]
+
+
 def shares_word(title: str, phrase: str) -> bool:
     """Does ``phrase`` use any meaningful word from ``title``?
 
