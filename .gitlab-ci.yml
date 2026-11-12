@@ -38,9 +38,9 @@ python:
   stage: check
   script: [make lint-python, make lint-deadcode]
 
-# The image has Qt but not Plasma or Kirigami; qmllint needs them to resolve the widget's KDE types, so this job
-# installs them (about 1.2 GB, a minute or two; a no-op once the image carries them) and lints strictly.
-# (The qml-tests job needs the same modules, for the components test, and installs them the same way.)
+# qmllint needs Plasma and Kirigami to resolve the widget's KDE types. The CI image carries them (ci/packages.txt,
+# since 2026-11-12: installing ~1.2 GB here took qml and qml-tests to ~3 min each); the pacman line below only
+# brings them up to today's Arch versions, so the lint still runs against the newest stack. Same in qml-tests.
 qml:
   stage: check
   script:
