@@ -110,15 +110,34 @@ TestCase {
         if (data.entry.config) initial.config = config
         var object = component.createObject(host, initial)
         verify(object !== null, "createObject() returned null: " + component.errorString())
-        // Let the component finish: its first bindings run (a TypeError in one is a warning, which fails the run),
-        // and what it builds asynchronously (Kirigami's ActionToolBar lays itself out through an asynchronous
-        // Loader) gets created. Destroyed earlier, that creation is still pending when the engine goes, and the
-        // engine warns about it ("There are still 1 items in the process of being created") on some runs and not
-        // others, which failed this check at random.
-        wait(120)
+        // Let the component finish before it is destroyed: its first bindings run (a TypeError in one is a warning,
+        // which fails the run), and what it builds asynchronously gets built. Destroyed earlier, that creation is
+        // still pending when the engine goes, and the engine warns ("There are still 2 items in the process of
+        // being created at engine destruction", with QObject::disconnect noise) or, on some runs, crashes.
+        // A fixed wait (120 ms) was not enough on a busy CI runner, so this waits for the thing itself: Kirigami's
+        // ActionToolBar builds its buttons with an asynchronous QQmlIncubator (ToolBarLayout, C++) and sets its
+        // implicit size only once every one of them and its overflow button exist.
+        tryVerify(function () { return buildingToolBars(object) === 0 }, 10000,
+                  data.tag + ": an ActionToolBar never finished building its buttons")
+        wait(50)    // the layout frees its overflow-button incubator on the next event-loop turn
         object.destroy()
         wait(20)    // the deletion is deferred: let it happen before the next component, and before teardown
         loaded++
+    }
+
+    // ToolBarLayouts (Kirigami.ActionToolBar's layout: the only item with `hiddenActions`) in `item`'s tree that
+    // have actions but no implicit size yet, which is to say whose buttons are still being created.
+    function buildingToolBars(item) {
+        if (!item)
+            return 0
+        var n = 0
+        if (item.hiddenActions !== undefined && item.actions && item.actions.length > 0
+                && item.implicitWidth <= 0 && item.implicitHeight <= 0)
+            n = 1
+        var kids = item.children
+        for (var i = 0; kids && i < kids.length; i++)
+            n += buildingToolBars(kids[i])
+        return n
     }
 
     function test_zz_the_skips_did_not_swallow_the_suite() {
