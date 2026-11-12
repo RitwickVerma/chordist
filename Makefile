@@ -7,7 +7,10 @@ APPLET_ID  := com.ritwick.chordist
 PREFIX     ?= $(HOME)/.local
 BIN_DIR    := $(PREFIX)/bin
 LIB_DIR    := $(PREFIX)/lib/chordist
-ICON_DIR   := $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/icons/hicolor/scalable/apps
+ICON_BASE  := $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/icons/hicolor
+ICON_DIR   := $(ICON_BASE)/512x512/apps
+# The chord-box logo that installs before 2.1.0 put here; the icon theme would keep choosing it over the PNG.
+OLD_ICON   := $(ICON_BASE)/scalable/apps/chordist.svg
 UNIT_DIR   ?= $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/systemd/user
 STATE_DIRS := $(or $(XDG_CONFIG_HOME),$(HOME)/.config)/chordist $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/chordist
 KPT        := kpackagetool6
@@ -78,7 +81,8 @@ install-service: ## Install the service, launcher and systemd unit, and (re)star
 	sed -e 's|^ExecStart=.*|ExecStart=$(subst &,\&,$(subst %,%%,$(BIN_DIR)))/chordistd serve|' packaging/chordistd.service > $(UNIT_DIR)/chordistd.service
 	chmod 644 $(UNIT_DIR)/chordistd.service
 	ln -sf chordistd $(BIN_DIR)/chordist
-	install -Dm644 packaging/chordist.svg $(ICON_DIR)/chordist.svg
+	install -Dm644 applet/contents/images/guitar.png $(ICON_DIR)/chordist.png
+	rm -f $(OLD_ICON)
 	@if $(SYSTEMCTL) daemon-reload && $(SYSTEMCTL) enable chordistd.service && $(SYSTEMCTL) restart chordistd.service; then \
 	    echo "The service is running."; \
 	else \
@@ -94,7 +98,7 @@ install-applet: ## Install or upgrade the Plasma widget
 uninstall: ## Remove the widget, service and unit (your charts and settings stay)
 	-$(SYSTEMCTL) disable --now chordistd.service
 	-$(KPT) -t Plasma/Applet -r $(APPLET_ID)
-	rm -rf $(LIB_DIR) $(BIN_DIR)/chordistd $(BIN_DIR)/chordist $(ICON_DIR)/chordist.svg $(UNIT_DIR)/chordistd.service
+	rm -rf $(LIB_DIR) $(BIN_DIR)/chordistd $(BIN_DIR)/chordist $(ICON_DIR)/chordist.png $(OLD_ICON) $(UNIT_DIR)/chordistd.service
 	-$(SYSTEMCTL) daemon-reload
 
 doctor: ## Check the running service and its tools

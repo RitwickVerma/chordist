@@ -45,6 +45,12 @@ they arrive and runs between them, and everything that seeks or loops uses the s
 - **The panel showed a generic lyrics icon instead of a guitar.** It asked the icon theme for a "guitar", which
   Breeze, Plasma's default, does not have. The widget now carries its own guitar icon, so every theme shows it.
 
+### Changed
+
+- **One icon everywhere: the guitar.** The panel, the widget list, the README and the project page all show it;
+  the chord-box logo is gone. It installs as `hicolor/512x512/apps/chordist.png`, and `make install` removes the
+  old `scalable/apps/chordist.svg`, which the icon theme would otherwise keep choosing.
+
 ### Added
 
 - **Highlight delay**, a setting (default 250 ms): how long after its time a line or chord lights up, which is how

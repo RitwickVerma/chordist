@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/images/logo.svg" width="96" alt="Chordist logo: a guitar chord box"></p>
+<p align="center"><img src="applet/contents/images/guitar.png" width="96" alt="Chordist icon: a guitar"></p>
 
 <h1 align="center">Chordist</h1>
 

@@ -44,7 +44,7 @@ for f in metadata.json contents/ui/main.qml contents/ui/SongModel.qml contents/j
     test -f "$plasmoid/$f" || { echo "missing from the package: $plasmoid/$f" >&2; exit 1; }
 done
 test -f /usr/lib/chordist/chordist/data/guitar-chords.json
-test -f /usr/share/icons/hicolor/scalable/apps/chordist.svg
+test -f /usr/share/icons/hicolor/512x512/apps/chordist.png
 test -f /usr/share/licenses/chordist/LICENSE
 grep -qx 'ExecStart=/usr/bin/chordistd serve' /usr/lib/systemd/user/chordistd.service
 # Plasma itself accepts it as an applet package: it is found in the system plasmoid directory.

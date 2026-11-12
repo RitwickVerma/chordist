@@ -19,7 +19,7 @@ want=(
     "$home/.local/lib/chordist/chordist/__init__.py"
     "$home/.local/lib/chordist/chordist/data/guitar-chords.json"
     "$home/.config/systemd/user/chordistd.service"
-    "$home/.local/share/icons/hicolor/scalable/apps/chordist.svg"
+    "$home/.local/share/icons/hicolor/512x512/apps/chordist.png"
     "$home/.local/share/plasma/plasmoids/com.ritwick.chordist/metadata.json"
     "$home/.local/share/plasma/plasmoids/com.ritwick.chordist/contents/ui/main.qml"
     "$home/.local/share/plasma/plasmoids/com.ritwick.chordist/contents/images/guitar.png"
