@@ -22,6 +22,7 @@ want=(
     "$home/.local/share/icons/hicolor/scalable/apps/chordist.svg"
     "$home/.local/share/plasma/plasmoids/com.ritwick.chordist/metadata.json"
     "$home/.local/share/plasma/plasmoids/com.ritwick.chordist/contents/ui/main.qml"
+    "$home/.local/share/plasma/plasmoids/com.ritwick.chordist/contents/images/guitar.png"
     "$home/.config/chordist"
     "$home/.local/share/chordist"
 )

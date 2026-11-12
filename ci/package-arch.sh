@@ -40,7 +40,7 @@ chordistd --help >/dev/null
 test -L /usr/bin/chordist
 plasmoid=/usr/share/plasma/plasmoids/com.ritwick.chordist
 for f in metadata.json contents/ui/main.qml contents/ui/SongModel.qml contents/js/theory.js \
-         contents/config/main.xml contents/config/config.qml; do
+         contents/config/main.xml contents/config/config.qml contents/images/guitar.png; do
     test -f "$plasmoid/$f" || { echo "missing from the package: $plasmoid/$f" >&2; exit 1; }
 done
 test -f /usr/lib/chordist/chordist/data/guitar-chords.json

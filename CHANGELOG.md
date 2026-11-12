@@ -42,6 +42,8 @@ they arrive and runs between them, and everything that seeks or loops uses the s
 - The widget picked a player by hand, on a timer, which switched off Plasma's own multiplexer and could leave it on
   a player that had stopped while another played. The multiplexer (which follows whichever player is playing and
   hides a browser's own MPRIS behind Plasma Browser Integration's richer one) is now used as it is.
+- **The panel showed a generic lyrics icon instead of a guitar.** It asked the icon theme for a "guitar", which
+  Breeze, Plasma's default, does not have. The widget now carries its own guitar icon, so every theme shows it.
 
 ### Added
 

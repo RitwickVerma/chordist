@@ -133,10 +133,10 @@ Item {
             Layout.preferredWidth: compact.iconSize
             Layout.preferredHeight: compact.iconSize
             Layout.alignment: Qt.AlignVCenter
-            // A guitar, not a lyrics page. Falls back to the lyrics icon if the
-            // user's icon theme has no "guitar" (Breeze does not, Papirus does).
-            source: "guitar"
-            fallback: "view-media-lyrics"
+            // Chordist's own guitar (contents/images/guitar.png), shipped inside the
+            // widget: asking the icon theme for "guitar" left most panels with a
+            // lyrics page, since Breeze, Plasma's default, has none.
+            source: Qt.resolvedUrl("../images/guitar.png")
             active: applet !== null && applet !== undefined && applet.playing === true
             opacity: compact.hasContent ? 1 : 0.55
 
