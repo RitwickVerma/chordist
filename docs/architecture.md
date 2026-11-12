@@ -66,10 +66,19 @@ about staves.
 
 Two ideas carry most of the weight:
 
-**One clock.** MPRIS reports position on demand and some players only on state changes, so `SongModel` anchors to
-each report and extrapolates on the monotonic clock, scaled by the playback rate. Everything reads `playbackPosition`
-(position plus the per-song lyric offset). A line never lights before its time: views highlight up to `syncLag`
-(0.25 s) *after* a timestamp, absorbing the output path's latency.
+**One clock.** Plasma answers an MPRIS position request asynchronously: the value read right after asking is the
+previous answer, up to a poll old (a probe against VLC shows the reply landing a millisecond *after* the read). So
+`SongModel` asks (`updatePosition()`, once a second while the popup is open, every three while it is not) and takes
+the answer when it arrives (`positionChanged`, which a seek in the player raises as well), anchors to it and
+extrapolates on this machine's clock, scaled by the playback rate. An answer within 0.3 s of the extrapolation only
+nudges the anchor half way, so a player that reports in coarse steps cannot make the highlight jitter; a distant
+one resets it. A new track starts the clock from the top until the player's answer lands, which is also how a
+player that never answers (a browser without Plasma Browser Integration) is followed, and the popup says so.
+
+Everything reads `playbackPosition` (position plus the per-song nudge), and everything that seeks *from* the
+timings (a line, a row, a section, the loop) goes through `seekToLyricTime`, which takes the nudge off again. A
+line never lights before its time: views highlight up to `syncLag` *after* a timestamp, absorbing the output
+path's latency; it is the "highlight delay" setting (250 ms by default; Bluetooth wants more).
 
 **One schedule.** The model lays the service's `row_times` onto the chart's rows (an even spread if there are
 none), then derives chord events: a chord sits at the same fraction along its row's duration as its first letter

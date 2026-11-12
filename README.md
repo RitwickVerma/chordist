@@ -103,9 +103,12 @@ installed the Arch package instead, run `make migrate` once from the checkout to
 | `Esc` | close the popup or window |
 
 Click a chord name to see its fingering on the Stage, a lyric or chart line to seek there, a section chip to jump to
-it, the big diagram to cycle through other fingerings. The `⋮` menu has the stage, fingering strip, finger numbers,
-left-handed mode, romanising, **Ask again** and "open in a window". Settings (panel style, text size, opacity, default
-tab, middle click) are in the widget's configuration dialog. Something not right?
+it, the big diagram to cycle through other fingerings. The **Timing** row nudges a song whose timings run early or
+late and pulls the nearest line onto what you are hearing; it is remembered per song. The `⋮` menu has the stage,
+fingering strip, finger numbers, left-handed mode, romanising, **Ask again** and "open in a window". Settings (panel
+style, text size, opacity, default tab, middle click, the **highlight delay** for Bluetooth, and whether to keep a
+dimmed icon for a song with nothing found, so its chart can be pasted) are in the widget's configuration dialog.
+Something not right?
 [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Configuration
@@ -166,7 +169,9 @@ responsibility: `"ug_enabled": false` turns it off and leaves lyrics (LRCLIB) an
 
 - Plasma 6 on Linux only; the player has to speak MPRIS.
 - The chart follows the *lyrics'* timings. A song with no synced lyrics gets its chart spread evenly over its length,
-  and a tab (which has no timing at all) is followed by the reading scroll, not by the music.
+  and a tab (which has no timing at all) scrolls in proportion to the song's progress, not line by line.
+- The player has to report its position. Firefox and Chromium do so through Plasma Browser Integration; without it
+  the widget follows an estimate from the start of the track, and says so.
 - Ultimate Guitar is scraped, so a change to its pages can break chart lookup until the parser is updated. Lyrics
   and your own charts do not depend on it.
 - The strumming pattern is not drawn (Ultimate Guitar stores it in a private code); only its tempo is used.

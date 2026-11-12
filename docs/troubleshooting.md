@@ -13,7 +13,9 @@ journalctl --user -u chordistd -n 50     # what it has been saying
 
 The panel item hides itself while the current song has neither a chord chart nor lyrics, so there is no dead icon
 sitting there. Start something playing and give it a few seconds. If a song you expect to work never shows it, see
-"No chords found" below.
+"No chords found" below. To paste a chart for a song nothing was found for, the popup has to open: turn off
+**Nothing found: hide the panel icon** in the widget's settings and a dimmed icon stays, or add the chart from a
+terminal (`chordist local add "<artist>" "<title>" chart.txt`).
 
 If you added the widget before 2.0 and it now says the widget is missing, the panel still points at the old
 `com.ritwick.lyricist`: run `make migrate-panel` once (see the README).
@@ -72,9 +74,15 @@ the same song exists many times (live, acoustic, remaster). Your choice is saved
 
 ## The highlight is early, late, or drifting
 
-- Lyrics come from LRCLIB with timings made for *one* release. The **Lyrics timing** row (Lyrics tab) nudges them, and
-  the refresh button there pulls the nearest line onto what you are hearing now. It is remembered per song.
-- Bluetooth speakers add delay the player does not report. Nudge the lyrics later.
+- **Always late by about the same amount, every song:** that is the sound's own delay. Raise **Highlight delay** in
+  the widget's settings (250 ms by default; Bluetooth headphones and speakers want a few hundred more). Always
+  early: lower it.
+- **One song is off:** its timings were made for another release. The **Timing** row (on both tabs) nudges them, and
+  the refresh button there pulls the nearest line onto what you are hearing now; click the offset to reset it. It is
+  remembered per song.
+- **The highlight sits still, or runs from the start of the track whatever the player does:** the player does not
+  report its position, and the popup's footer says so. Firefox and Chromium report it through
+  [Plasma Browser Integration](https://community.kde.org/Plasma/Browser_Integration); install it.
 - A chart is aligned to the lyric timings. With no synced lyrics it is spread evenly over the song, which follows
   the music loosely. Pasting a chart for a song never makes it more precise than its lyrics.
 

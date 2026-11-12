@@ -60,12 +60,20 @@ js-tests:
   script: [make test-js]
 
 # The song-model test, and every component created against the newest KDE stack (Arch is rolling: Kirigami, Plasma
-# and Qt as they are today). debian-trixie below does the same against the oldest one the widget claims.
+# and Qt as they are today). debian-trixie below does the same against the oldest one the widget claims. The same
+# job renders the real popup headless (make shots: needs a font, hence ttf-dejavu) and keeps the PNGs, so a UI
+# change can be looked at from the merge request.
 qml-tests:
   stage: test
   script:
-    - pacman -Syu --noconfirm --needed --quiet plasma-workspace libplasma kirigami kcmutils qqc2-desktop-style
+    - pacman -Syu --noconfirm --needed --quiet plasma-workspace libplasma kirigami kcmutils qqc2-desktop-style ttf-dejavu
     - make test-qml
+    - make shots
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - build/shots/*.png
 
 build:
   stage: test
