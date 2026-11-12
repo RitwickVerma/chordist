@@ -4,7 +4,7 @@
 
 [project]
 name = "chordist"
-version = "2.0.1"
+version = "2.1.0"
 description = "Lyrics, chords and tabs for whatever you are playing: the local service behind the Chordist Plasma widget"
 authors = [{ name = "Ritwick Verma", email = "verma1997@gmail.com" }]
 license = "MIT"

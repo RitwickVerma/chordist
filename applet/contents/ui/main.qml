@@ -17,37 +17,16 @@ PlasmoidItem {
     id: root
 
     // ----------------------------------------------------------------- MPRIS
+    // Row 0 of Plasma's model is its multiplexer: it follows whichever player
+    // is making noise and keeps the last one while nothing plays, which is
+    // exactly the player to show. Several are registered at once on a normal
+    // desktop (Spotify, a browser tab, a phone over KDE Connect); the model
+    // also hides a browser's own MPRIS behind the richer one Plasma Browser
+    // Integration registers for the same tab. Picking a row by hand would
+    // switch all of that off, so the index is never moved.
     Mpris.Mpris2Model {
         id: mpris
         Component.onCompleted: currentIndex = 0
-    }
-    // Several players are registered at once on a normal desktop (Spotify, a
-    // browser tab, a phone over KDE Connect) and the first row is not
-    // necessarily the one making noise, so follow whichever is playing.
-    function pickPlayer() {
-        var current = mpris.currentPlayer
-        if (current && current.playbackStatus === Mpris.PlaybackStatus.Playing) return
-        for (var i = 0; i < mpris.rowCount(); i++) {
-            var candidate = mpris.data(mpris.index(i, 0), Qt.UserRole + 1)
-            if (candidate && candidate.playbackStatus === Mpris.PlaybackStatus.Playing) {
-                mpris.currentIndex = i
-                return
-            }
-        }
-    }
-    // Only while nothing is playing: when the player we show is the one playing
-    // there is nothing to look for.
-    Timer { interval: 2000; repeat: true; running: !root.playing; onTriggered: root.pickPlayer() }
-    Connections {
-        target: mpris
-        function onRowsInserted() {
-            if (mpris.currentPlayer === null) mpris.currentIndex = 0
-            root.pickPlayer()
-        }
-        function onRowsRemoved() {
-            if (mpris.currentPlayer === null) mpris.currentIndex = 0
-            root.pickPlayer()
-        }
     }
 
     readonly property var player: mpris.currentPlayer || null
@@ -64,6 +43,7 @@ PlasmoidItem {
         artUrl: root.player && root.player.artUrl ? root.player.artUrl : ""
         identity: root.player && root.player.identity ? root.player.identity : ""
         lengthSec: root.player && root.player.length > 0 ? root.player.length / 1000000 : 0
+        viewVisible: root.expanded || root.windowVisible
         onWindowRequested: root.toggleWindow()
         onCloseRequested: root.closeSelf()
     }
@@ -140,10 +120,12 @@ PlasmoidItem {
 
     // HiddenStatus makes the containment drop the item from the panel. Keep the
     // icon for anything worth opening, a chart OR lyrics; a track with nothing
-    // recognised hides the icon instead of leaving a dead one behind. The
-    // previous song's chart stays until the new answer lands, so the icon does
-    // not blink on every track change.
-    Plasmoid.status: (song.chordsAvailable || song.lyricsAvailable) ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.HiddenStatus
+    // recognised hides the icon instead of leaving a dead one behind, unless
+    // the setting says to keep a dimmed one (the way to paste a chart for that
+    // track). The previous song's chart stays until the new answer lands, so
+    // the icon does not blink on every track change.
+    Plasmoid.status: (song.chordsAvailable || song.lyricsAvailable) ? PlasmaCore.Types.ActiveStatus
+        : (song.ready && !song.hideWhenEmpty ? PlasmaCore.Types.PassiveStatus : PlasmaCore.Types.HiddenStatus)
     toolTipMainText: song.ready ? song.track : i18n("Chordist")
     toolTipSubText: {
         if (!song.ready) return i18n("Chords, tabs and lyrics for whatever you play")

@@ -11,7 +11,8 @@ Four layers, from cheapest to most real. `make test` runs the first three; the f
 | Real shell | below | `main.qml`, `Compact.qml`, the config page, Mpris wiring |
 
 CI runs the same `make` targets (the `qml` and `qml-tests` jobs install Plasma and Kirigami first, so qmllint resolves
-every KDE type and the components load against today's Arch) and adds three jobs that are not `make` targets:
+every KDE type and the components load against today's Arch; `qml-tests` also runs `make shots` and keeps the PNGs as
+artifacts, so a UI change can be looked at from the merge request) and adds three jobs that are not `make` targets:
 
 - `package-arch` builds the Arch package from the tree as a normal user (`ci/package-arch.sh`), runs namcap (an `E:` fails
   the job), installs the package, checks `chordist --help` and the plasmoid files, then builds the AUR files for the same

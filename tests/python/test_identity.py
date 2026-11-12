@@ -57,21 +57,21 @@ def test_a_junk_entry_that_merely_has_the_right_length_is_refused():
 
 
 def test_no_duration_means_the_name_has_to_stand_alone():
-    lyrics = FakeLyrics({("A", "Song"): entry("A", "Song", duration=999)})
-    assert identity.resolve(CONFIG, lyrics, "A", "Song", 0)["title"] == "Song"
+    lyrics = FakeLyrics({("A", "Creep"): entry("A", "Creep", duration=999)})
+    assert identity.resolve(CONFIG, lyrics, "A", "Creep", 0)["title"] == "Creep"
 
 
 def test_an_entry_with_no_lyrics_does_not_count_unless_instrumental():
-    lyrics = FakeLyrics({("A", "Song"): entry("A", "Song", lines=False)})
-    assert identity.resolve(CONFIG, lyrics, "A", "Song", 200) is None
+    lyrics = FakeLyrics({("A", "Creep"): entry("A", "Creep", lines=False)})
+    assert identity.resolve(CONFIG, lyrics, "A", "Creep", 200) is None
     instrumental = {**entry("A", "Tune", lines=False), "instrumental": True}
     assert identity.resolve(CONFIG, FakeLyrics({("A", "Tune"): instrumental}), "A", "Tune", 200) is not None
 
 
 def test_a_resolved_identity_is_cached():
-    lyrics = FakeLyrics({("A", "Song"): entry("A", "Song")})
-    identity.resolve(CONFIG, lyrics, "A", "Song", 200)
-    identity.resolve(CONFIG, lyrics, "A", "Song", 200)
+    lyrics = FakeLyrics({("A", "Creep"): entry("A", "Creep")})
+    identity.resolve(CONFIG, lyrics, "A", "Creep", 200)
+    identity.resolve(CONFIG, lyrics, "A", "Creep", 200)
     assert len(lyrics.calls) == 1
 
 
@@ -96,7 +96,7 @@ def test_the_audio_is_identified_only_when_the_text_gives_up(monkeypatch):
     got = identity.resolve(config, FakeLyrics({}), "Chan", "Creep", 200)
     assert got["confidence"] == "fingerprint" and seen
     seen.clear()
-    identity.resolve(config, FakeLyrics({("A", "Song"): entry("A", "Song")}), "A", "Song", 200)
+    identity.resolve(config, FakeLyrics({("A", "Creep"): entry("A", "Creep")}), "A", "Creep", 200)
     assert not seen, "found by name: no recording needed"
 
 
@@ -135,3 +135,14 @@ def test_an_error_in_the_lyrics_provider_does_not_stop_the_search():
 
     lyrics = Flaky({("", "Creep"): entry("Radiohead", "Creep", 238)})
     assert identity.resolve(CONFIG, lyrics, "Chan", "Creep", 238)["artist"] == "Radiohead"
+
+
+def test_a_title_with_no_song_in_it_is_not_matched_by_name(monkeypatch):
+    """The front page of a video site, playing a preview, has nothing to look up: only the audio can say."""
+    lyrics = FakeLyrics({("", "YouTube"): entry("rexv2", "YOUTUBE", duration=200)})
+    assert identity.resolve(CONFIG, lyrics, "", "YouTube", 200) is None
+    assert lyrics.calls == []
+    monkeypatch.setattr(identity.fingerprint, "identify",
+                        lambda *a, **k: {"artist": "Pritam", "title": "Tum Se", "album": "", "source": "shazam"})
+    got = identity.resolve(Config({"fingerprint_enabled": True}), lyrics, "", "(80) YouTube", 200)
+    assert got["title"] == "Tum Se" and got["confidence"] == "fingerprint"

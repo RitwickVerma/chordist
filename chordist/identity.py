@@ -24,6 +24,7 @@ from typing import Any
 from . import fingerprint, titles
 from .cache import DiskCache, key_for
 from .config import Config
+from .lyrics import clean
 
 log = logging.getLogger(__name__)
 
@@ -114,7 +115,11 @@ def resolve(
         return hit.get("identity") or None
 
     resolved: dict[str, Any] | None = None
-    for pair_artist, pair_title in candidates(artist, title):
+    # A title with no word a song could be known by ("(80) YouTube", "Official Audio") cannot be verified by
+    # name: whatever the lyrics database returns for it is some other upload that happens to be the same
+    # length. Only the audio can say what it is, and then there is no name to hold its answer against either.
+    named = bool(titles.meaningful(clean(title)))
+    for pair_artist, pair_title in candidates(artist, title) if named else []:
         try:
             result = lyrics.lookup(pair_artist, pair_title, album, duration)
         except Exception:  # a provider hiccup must not stop the search
@@ -143,7 +148,7 @@ def resolve(
     from_fingerprint = False
     if resolved is None and config.get("fingerprint_enabled", True):
         found = fingerprint.identify(config, artist, title)
-        if found and found.get("title") and _name_agrees(title, found.get("title")):
+        if found and found.get("title") and (not named or _name_agrees(clean(title), found.get("title"))):
             resolved = {
                 "artist": found.get("artist") or "",
                 "title": found["title"],

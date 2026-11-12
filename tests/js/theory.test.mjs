@@ -195,3 +195,12 @@ test("extended chords that are easy to play are not priced as barres", () => {
     assert.ok(T.shapeCost("F#7sus4") >= 2);
     assert.ok(T.shapeCost("Bm7") >= 2);
 });
+
+test("chord columns keep at least the asked-for gap, so an instrumental row's names and their pill agree", () => {
+    const chords = [{ pos: 0, name: "G" }, { pos: 1, name: "C" }, { pos: 2, name: "Am7" }];
+    assert.deepEqual(T.chordColumns(chords, 0, false).map((c) => c.col), [0, 2, 4]);
+    assert.deepEqual(T.chordColumns(chords, 0, false, 4).map((c) => c.col), [0, 5, 10]);
+    assert.equal(T.chordLine(chords, 0, false, 4), "G    C    Am7");
+    // a chord already far enough along keeps its own column
+    assert.deepEqual(T.chordColumns([{ pos: 0, name: "G" }, { pos: 12, name: "C" }], 0, false, 4).map((c) => c.col), [0, 12]);
+});

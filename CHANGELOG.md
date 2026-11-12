@@ -3,6 +3,64 @@
 All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1.0] — 2026-11-12
+
+The highlight keeps time. The widget's clock was anchored to a position one poll old, so the line and the chord
+being played lit up late, and a little later or earlier every half second. It now takes the player's answers as
+they arrive and runs between them, and everything that seeks or loops uses the same clock.
+
+### Fixed
+
+- **The highlight ran late and stuttered.** Plasma answers a position request asynchronously, so the value the
+  widget read straight after asking was the previous answer, up to half a second old, and the clock was re-anchored
+  to it on every poll. The position is now taken from the player's `positionChanged` as it arrives (a seek in the
+  player arrives the same way, at once, instead of at the next poll) and extrapolated between answers; an answer
+  close to the extrapolation only nudges it, so a player that reports in coarse steps cannot make the highlight
+  jitter, and a distant one (a seek, a new track) resets it.
+- **Clicking a line, jumping to a section and looping a section ignored the song's timing nudge**, so after
+  "Line up now" (or a per-song offset) they landed off by that much. Every seek made from the timings now allows
+  for it, and the loop is measured on the timings' clock. "Line up now" allows for the highlight delay too, so
+  the line it pulls onto the song lights the moment the button is pressed, and it works on the chart tab, using the
+  chart's own rows.
+- **A hand-picked tab or lyrics entry was not used the next time the song played.** The service returned the
+  remembered pick but never applied it, and the widget showed it as "in use". The service now applies a song's
+  remembered picks when a request does not say otherwise (an explicit empty pin means "none", so un-pinning
+  cannot be undone by a preference file that has not caught up).
+- "Ask again", another version or the romanise toggle put back the song's *saved* transpose and capo, undoing a
+  change made since; a later answer now keeps what was set, and only follows the new chart's own capo when the old
+  one was being played as written.
+- **A browser tab called "YouTube" (the site's front page) was resolved to a junk upload named "YOUTUBE"** that
+  happened to be the same length, and its lyrics shown. A title with no word a song could be known by is not looked
+  up by name any more, and such a tab gets nothing.
+- The chord pill on an instrumental row was drawn at the wrong column for every chord after the first (the row was
+  laid out with four spaces between names and the pill with one).
+- The popup opened without scrolling to the line being sung until the next line began; switching tabs and switching
+  following on did the same. The followed row is now brought into view at once, and a new song starts at the top.
+- The tab reading scroll kept scrolling while the player was paused.
+- A paused player was recorded for audio identification like a playing one (six seconds of silence per track
+  change); the widget now says whether it is playing and a paused one is never recorded.
+- The widget picked a player by hand, on a timer, which switched off Plasma's own multiplexer and could leave it on
+  a player that had stopped while another played. The multiplexer (which follows whichever player is playing and
+  hides a browser's own MPRIS behind Plasma Browser Integration's richer one) is now used as it is.
+
+### Added
+
+- **Highlight delay**, a setting (default 250 ms): how long after its time a line or chord lights up, which is how
+  late the sound reaches you. Raise it for Bluetooth headphones or speakers. The per-song nudge stays in the popup.
+- **Timing controls on the chart tab** (nudge, "Line up now" on the chart's rows, click the offset to reset it).
+- **A tab follows the song.** A tablature has no timings of its own; while "Follow the song" is on, the page now
+  moves in proportion to the song's progress (pausing and seeking with it) instead of scrolling at a fixed pace.
+  With following off, the reading scroll remains, and it only moves while the song plays.
+- A player that never reports its position (a browser without Plasma Browser Integration) is followed by an
+  estimate counted from the start of the track, and the popup says so. A player that cannot seek gets no seek
+  cursors.
+- A setting to keep a dimmed panel icon while a track with no chart and no lyrics plays, which is how a chart can
+  be pasted for that track (the icon stays hidden by default, as before).
+- The popup ticks ten times a second while it is on screen (the countdown and karaoke words were stepping at five)
+  and asks the player for its position once a second; while it is closed, less of both.
+- Every merge request renders the widget headless (`make shots`) and keeps the PNGs as artifacts, so a UI change
+  can be looked at in the pipeline.
+
 ## [2.0.1] — 2026-11-10
 
 Chordist runs on the KDE Frameworks that Debian 13 ships, installs on distributions other than Arch, and is now

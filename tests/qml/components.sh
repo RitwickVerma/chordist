@@ -44,12 +44,20 @@ cat "$work/out.log"
 # for the noise KDE's code makes when there is no session to talk to: no display or window system, no icon theme
 # configured (qqc2-desktop-style resolves icons through KIconThemes), no spell-checking dictionary installed (its
 # text fields ask Sonnet for one). Each pattern is that and nothing broader (fixed strings, not patterns).
+# The last four are libplasma 6.3's (Debian 13) own SpinBox: its background is a Loader, and the control reads
+# `item.leftMargin` and the other three before the Loader has an item (SpinBox.qml lines 149 to 152 in 6.3.5),
+# which throws once per property while the capo box loads, then binds correctly. Plasma 6.8 does not do it. The
+# line numbers are part of the string on purpose: another Plasma's SpinBox is not excused by this.
 noise=(
     'kf.windowsystem: Could not find any platform plugin'
     'Failed to create wl_display'
     'QObject::installEventFilter(): Cannot filter events for objects in a different thread'
     'kf.iconthemes: Icon theme "breeze-internal" not found.'
     'kf.sonnet.core: Sonnet: No speller backends available!'
+    "qrc:/qt/qml/org/kde/plasma/components/SpinBox.qml:149: TypeError: Cannot read property 'leftMargin' of null"
+    "qrc:/qt/qml/org/kde/plasma/components/SpinBox.qml:150: TypeError: Cannot read property 'rightMargin' of null"
+    "qrc:/qt/qml/org/kde/plasma/components/SpinBox.qml:151: TypeError: Cannot read property 'topMargin' of null"
+    "qrc:/qt/qml/org/kde/plasma/components/SpinBox.qml:152: TypeError: Cannot read property 'bottomMargin' of null"
 )
 printf '%s\n' "${noise[@]}" >"$work/noise.txt"
 if grep -E '^(QWARN|QCRITICAL|QFATAL)' "$work/out.log" | grep -v -F -f "$work/noise.txt" >"$work/warnings.log"; then

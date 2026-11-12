@@ -22,6 +22,8 @@ TestCase {
         property int fontSizeOffset: 0
         property int scrollSpeed: 5
         property bool autoScroll: true
+        property int highlightDelayMs: 250
+        property bool hideWhenEmpty: true
     }
 
     SongModel {
@@ -426,5 +428,156 @@ TestCase {
         compare(model.statusMessage, "notrack")
         model.artist = "Artist"
         model.track = "Song"
+    }
+
+    // ------------------------------------------------------------- the clock
+    function test_a_report_close_to_the_clock_only_nudges_it() {
+        var player = makePlayer()
+        model.player = player
+        model.playing = true
+        model.observePosition(20)
+        verify(Math.abs(model.positionSec - 20) < 0.05, "took the first report: " + model.positionSec)
+        // A report a little off (jitter, a player that reports in coarse steps) moves the clock half way.
+        model.observePosition(20.2)
+        verify(Math.abs(model.positionSec - 20.1) < 0.05, "nudged to " + model.positionSec)
+        // One far off (a seek in the player) is taken as it is.
+        model.observePosition(60)
+        verify(Math.abs(model.positionSec - 60) < 0.05, "snapped to " + model.positionSec)
+        model.playing = false
+        model.player = null
+    }
+
+    function test_the_poll_asks_the_player_and_never_adopts_its_stale_answer() {
+        // A real player answers updatePosition() later, through positionChanged; what `position` holds meanwhile
+        // is the previous answer. The fake's never changes, so taking it would show here as a jump.
+        var player = makePlayer()
+        var asked = 0
+        player.updatePosition = function () { asked++ }
+        model.player = player
+        model.playing = true
+        player.position = 55 * 1000000
+        wait(150)
+        verify(asked >= 2, "the player was asked " + asked + " times")
+        verify(model.positionSec < 1, "adopted the stale value: " + model.positionSec)
+        model.playing = false
+        model.player = null
+    }
+
+    function test_seeking_to_a_line_allows_for_the_songs_nudge() {
+        var player = makePlayer()
+        model.player = player
+        model.lyricsOffset = 2                  // the timings run two seconds ahead of this recording
+        model.seekToLyricTime(30)               // a line stamped 30 s is sung 28 s into the recording
+        compare(player.position, 28 * 1000000)
+        compare(model.playbackPosition, 30)     // and the highlight lands on it at once
+        model.lyricsOffset = 0
+        model.player = null
+    }
+
+    function test_the_loop_is_measured_on_the_timings_clock() {
+        var player = makePlayer()
+        model.player = player
+        model.playing = true
+        model.lyricsOffset = 1
+        model.loopSection(model.spans[0])       // Verse: 10..40 on the timings' clock
+        model.observePosition(38.97)            // 39.97 on that clock: the verse is ending
+        compare(player.position, 9 * 1000000)   // back to 10 on it, which is 9 s of the recording
+        model.playing = false
+        model.lyricsOffset = 0
+        model.player = null
+    }
+
+    function test_line_up_now_lights_the_nearest_line_at_once() {
+        model.song = { lyrics: { synced: true, lines: [{ t: 10, text: "a" }, { t: 20, text: "b" }, { t: 40, text: "c" }] },
+                       chords: chart({}), prefs: {} }
+        model.stale = false
+        model.lyricsOffset = 0
+        model.positionSec = 19.4                // the line stamped 20 is heard now
+        model.syncOffset()
+        compare(model.lyricsOffset, Math.round((20 + model.syncLag - 19.4) * 20) / 20)
+        compare(model.lyricActive, 1)           // lit this instant, delay included
+        // On the chart tab the rows' own times are the candidates.
+        model.positionSec = 39
+        model.syncOffset(model.rowTimes)
+        compare(model.activeRow, 4)
+        model.resetOffset()
+        compare(model.lyricsOffset, 0)
+        model._prefsSave.stop()
+    }
+
+    function test_a_new_track_starts_the_clock_from_the_top() {
+        var player = makePlayer()
+        player.position = 200 * 1000000
+        model.player = player
+        model.playing = true
+        model.syncPosition()
+        compare(Math.round(model.positionSec), 200)
+        model.track = "Next"                    // the player's 200 s belong to the old track
+        verify(model.positionSec < 1, "still at " + model.positionSec)
+        model.observePosition(3)                // its answer for the new one
+        verify(Math.abs(model.positionSec - 3) < 0.05, "at " + model.positionSec)
+        model.playing = false
+        model.player = null
+        model.track = "Song"
+    }
+
+    function test_a_player_that_never_reports_is_followed_by_an_estimate() {
+        var player = makePlayer()               // position stays 0, like a browser without Plasma Browser Integration
+        model.player = player
+        model.playing = true
+        verify(!model.clockEstimated)
+        model._anchorTime = Date.now() - 10000  // ten seconds into the track
+        model._tick()
+        verify(model.clockEstimated, "no report in ten seconds: an estimate")
+        model.observePosition(10.5)
+        verify(!model.clockEstimated)
+        model.playing = false
+        model.player = null
+    }
+
+    function test_the_highlight_delay_is_a_setting() {
+        compare(model.syncLag, 0.25)
+        config.highlightDelayMs = 600
+        compare(model.syncLag, 0.6)
+        config.highlightDelayMs = 99999
+        compare(model.syncLag, 2)
+        config.highlightDelayMs = 250
+    }
+
+    function test_a_player_that_cannot_seek_says_so() {
+        verify(!model.canSeek)
+        var player = makePlayer()
+        model.player = player
+        verify(model.canSeek)                   // a player that does not say is assumed able
+        player.canSeek = false
+        model.player = null
+        model.player = player
+        verify(!model.canSeek)
+        model.player = null
+    }
+
+    // ------------------------------------------------------------- answers
+    function test_a_later_answer_keeps_the_users_changes_and_follows_the_charts_capo() {
+        model._prefsLoaded = false
+        model.acceptSong({ lyrics: null, chords: chart({ capo: 2 }), prefs: { transpose: 1 } }, "Artist", "Song")
+        compare(model.transpose, 1)
+        compare(model.capo, 2)                  // no capo saved: the chart's own, as written
+        model.transpose = 3                     // the user's change...
+        model.acceptSong({ lyrics: null, chords: chart({ capo: 4 }), prefs: { transpose: 1 } }, "Artist", "Song")
+        compare(model.transpose, 3)             // ...survives the next answer's stale prefs
+        compare(model.capo, 4)                  // and a chart played as written stays as written
+        model.capo = 1                          // but a capo the user chose...
+        model.acceptSong({ lyrics: null, chords: chart({ capo: 5 }), prefs: {} }, "Artist", "Song")
+        compare(model.capo, 1)                  // ...is left alone
+        model._prefsSave.stop()
+    }
+
+    function test_an_answer_with_nothing_in_it_says_nothing() {
+        model.statusMessage = ""
+        model.acceptSong({ lyrics: { source: "none" }, chords: { source: "none", sections: [] }, prefs: {} }, "Artist", "Song")
+        compare(model.statusMessage, "nothing")
+        model.statusMessage = ""
+        model.acceptSong({ lyrics: null, chords: chart({}), prefs: {} }, "Artist", "Song")
+        compare(model.statusMessage, "")
     }
 }

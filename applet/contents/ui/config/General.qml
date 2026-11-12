@@ -4,6 +4,7 @@
 
 import QtQuick
 import QtQuick.Controls as QQC
+import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 
@@ -20,6 +21,8 @@ KCM.SimpleKCM {
     property alias cfg_leftHanded: leftHanded.checked
     property alias cfg_simplifyChords: simplifyChords.checked
     property alias cfg_scrollSpeed: scrollSpeed.value
+    property alias cfg_highlightDelayMs: highlightDelayMs.value
+    property alias cfg_hideWhenEmpty: hideWhenEmpty.checked
     property alias cfg_compactScroll: compactScroll.checked
     property alias cfg_compactMode: compactMode.currentValue
     property alias cfg_middleClickAction: middleClickAction.currentValue
@@ -100,6 +103,23 @@ KCM.SimpleKCM {
             to: 10
         }
 
+        QQC.SpinBox {
+            id: highlightDelayMs
+            Kirigami.FormData.label: i18n("Highlight delay:")
+            from: 0
+            to: 2000
+            stepSize: 50
+            textFromValue: function (value) { return i18n("%1 ms", value) }
+            valueFromText: function (text) { return parseInt(text, 10) || 0 }
+        }
+        QQC.Label {
+            text: i18n("A line or chord lights up this long after its time, which is how late the sound reaches you. Raise it for Bluetooth headphones or speakers; a per-song nudge is in the popup.")
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            opacity: 0.7
+        }
+
         QQC.CheckBox {
             id: openAsWindow
             Kirigami.FormData.label: i18n("Floating window:")
@@ -128,6 +148,12 @@ KCM.SimpleKCM {
             id: animateIcon
             Kirigami.FormData.label: i18n("Panel icon:")
             text: i18n("Rock the guitar while a song with lyrics or chords plays")
+        }
+
+        QQC.CheckBox {
+            id: hideWhenEmpty
+            Kirigami.FormData.label: i18n("Nothing found:")
+            text: i18n("Hide the panel icon while the current track has no chart and no lyrics (off: keep a dimmed one, to paste a chart)")
         }
 
         QQC.ComboBox {

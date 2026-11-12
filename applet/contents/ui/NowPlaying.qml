@@ -173,10 +173,10 @@ Item {
                 }
                 MouseArea {
                     anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
+                    enabled: !!(header.applet && header.applet.canSeek && header.applet.lengthSec > 0)
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked: function (mouse) {
-                        if (header.applet && header.applet.lengthSec > 0)
-                            header.applet.seekTo((mouse.x / width) * header.applet.lengthSec)
+                        header.applet.seekTo((mouse.x / width) * header.applet.lengthSec)
                     }
                 }
             }

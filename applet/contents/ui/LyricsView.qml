@@ -40,6 +40,7 @@ Item {
         spacing: Kirigami.Units.smallSpacing
         followIndex: view.activeIndex
         follow: view.follow
+        playing: !!view.applet && view.applet.playing
         glideMs: 320
 
         delegate: Item {
@@ -76,9 +77,9 @@ Item {
 
             MouseArea {
                 anchors.fill: parent
-                enabled: row.seekable
+                enabled: row.seekable && !!view.applet && view.applet.canSeek
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: view.applet.seekTo(row.modelData.t)
+                onClicked: view.applet.seekToLyricTime(row.modelData.t)
             }
 
             // Word-by-word karaoke for the current line when the database has

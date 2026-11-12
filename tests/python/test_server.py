@@ -227,3 +227,16 @@ def test_a_chart_without_a_song_is_refused_not_saved_as_untitled(api):
     status, body, _ = api("POST", "/api/paste", {"artist": "X", "title": "", "text": "Am F\nhello"})
     assert status == 400 and "title" in body["error"]
     assert api("GET", "/api/local")[1]["items"] == []
+
+
+def test_blank_query_values_are_kept_and_the_playing_flag_reaches_the_service(api, monkeypatch):
+    seen = []
+    svc = api.httpd.service
+    monkeypatch.setattr(svc, "song", lambda *a, **k: seen.append((a, k)) or {"lyrics": {}, "chords": {}, "prefs": {}})
+    api("GET", "/api/song?artist=X&title=Y&lyrics_id=&chord_url=&playing=0")
+    args, kwargs = seen[0]
+    assert args[5] == "" and args[6] == "", "lyrics_id= and chord_url= say none, which is not the same as unsaid"
+    assert kwargs["playing"] is False
+    api("GET", "/api/song?artist=X&title=Y")
+    args, kwargs = seen[1]
+    assert args[5] is None and args[6] is None and kwargs["playing"] is True

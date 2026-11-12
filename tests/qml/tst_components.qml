@@ -110,8 +110,14 @@ TestCase {
         if (data.entry.config) initial.config = config
         var object = component.createObject(host, initial)
         verify(object !== null, "createObject() returned null: " + component.errorString())
-        wait(20)    // let the first bindings run: a TypeError in one is a warning, which fails the run
+        // Let the component finish: its first bindings run (a TypeError in one is a warning, which fails the run),
+        // and what it builds asynchronously (Kirigami's ActionToolBar lays itself out through an asynchronous
+        // Loader) gets created. Destroyed earlier, that creation is still pending when the engine goes, and the
+        // engine warns about it ("There are still 1 items in the process of being created") on some runs and not
+        // others, which failed this check at random.
+        wait(120)
         object.destroy()
+        wait(20)    // the deletion is deferred: let it happen before the next component, and before teardown
         loaded++
     }
 

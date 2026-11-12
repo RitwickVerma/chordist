@@ -99,16 +99,18 @@ function chordName(raw, semitones, simplify) {
 
 // Where each chord of a row sits once the row is laid out in characters:
 // [{col, len, name}]. A chord wants the column of its syllable, but is pushed
-// right when the one before it is still there, so names never run together.
-function chordColumns(chords, semitones, simplify) {
+// right when the one before it is still there, so names never run together:
+// at least `gap` spaces (one by default; an instrumental row, whose chords
+// have no syllables, reads better with a few).
+function chordColumns(chords, semitones, simplify, gap) {
     var out = [];
     if (!chords) return out;
+    var space = gap > 1 ? gap : 1;
     var end = 0;
     for (var i = 0; i < chords.length; i++) {
         var name = chordName(chords[i].name, semitones, simplify);
         var col = chords[i].pos;
-        // Never touching the previous name: at least one space between them.
-        if (i > 0 && end >= col) col = end + 1;
+        if (i > 0 && col < end + space) col = end + space;
         out.push({ col: col, len: name.length, name: name });
         end = col + name.length;
     }
@@ -117,8 +119,8 @@ function chordColumns(chords, semitones, simplify) {
 
 // The space-padded chord row that sits above one lyric line.
 // Assumes a monospace font, so character offset == column offset.
-function chordLine(chords, semitones, simplify) {
-    var columns = chordColumns(chords, semitones, simplify);
+function chordLine(chords, semitones, simplify, gap) {
+    var columns = chordColumns(chords, semitones, simplify, gap);
     var out = "";
     for (var i = 0; i < columns.length; i++) {
         while (out.length < columns[i].col) out += " ";

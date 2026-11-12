@@ -48,6 +48,16 @@ SPDX-License-Identifier: MIT
             <min>1</min>
             <max>10</max>
         </entry>
+        <entry name="highlightDelayMs" type="Int">
+            <label>How long after its time a line or chord lights up, in milliseconds (the sound's own delay)</label>
+            <default>250</default>
+            <min>0</min>
+            <max>2000</max>
+        </entry>
+        <entry name="hideWhenEmpty" type="Bool">
+            <label>Leave the panel without an icon while the current track has no chart and no lyrics</label>
+            <default>true</default>
+        </entry>
         <entry name="compactScroll" type="Bool">
             <default>true</default>
         </entry>
