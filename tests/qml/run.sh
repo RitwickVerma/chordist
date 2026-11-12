@@ -50,7 +50,9 @@ for spec in "${scenarios[@]}"; do
         echo "ok    $label"
     else
         echo "FAIL  $label (exit $status)"; failed=1
-        grep -E "^qml: FAIL|Error|error:" "$work/$label.log" | sort -u | head -5
+        # || true: no matching line (grep 1) or more than five (head closing the pipe) must not end the run
+        # under set -e and pipefail, before the service log and the remaining shots.
+        grep -E "^qml: FAIL|Error|error:" "$work/$label.log" | sort -u | head -5 || true
         tail -n 5 "$work/service.log"
     fi
     grep -E "Error|error:|TypeError|ReferenceError|is not|Cannot" "$work/$label.log" | sort -u | head -8 || true

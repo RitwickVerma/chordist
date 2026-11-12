@@ -47,8 +47,11 @@ test -f /usr/lib/chordist/chordist/data/guitar-chords.json
 test -f /usr/share/icons/hicolor/512x512/apps/chordist.png
 test -f /usr/share/licenses/chordist/LICENSE
 grep -qx 'ExecStart=/usr/bin/chordistd serve' /usr/lib/systemd/user/chordistd.service
-# Plasma itself accepts it as an applet package: it is found in the system plasmoid directory.
-kpackagetool6 --type Plasma/Applet --global --list | grep -q com.ritwick.chordist
+# Plasma itself accepts it as an applet package: it is found in the system plasmoid directory. The list is read
+# whole before it is searched: `grep -q` quits at the first match, and under pipefail the SIGPIPE that leaves
+# kpackagetool6 with (exit 141) failed this job at random once the image carried all of Plasma's own applets.
+applets=$(kpackagetool6 --type Plasma/Applet --global --list)
+grep -q com.ritwick.chordist <<<"$applets"
 [ "$(chordist --version)" = "chordist $version" ]
 
 echo "::: the AUR files, generated for this tarball"
