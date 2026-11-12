@@ -18,7 +18,9 @@ scenarios=("$@")
 [[ ${#scenarios[@]} -gt 0 ]] || scenarios=(chords ug lefty tab lyrics versions empty)
 port=$((20000 + RANDOM % 20000))
 work="$(mktemp -d)"
-trap 'kill "${svc:-0}" 2>/dev/null || true; rm -rf "$work"' EXIT
+# Kill the service only if it was started: an unset pid made this `kill 0`, which on an early exit (the shim
+# failing, say) killed the caller's whole process group: make, a CI job, the ssh session that ran it.
+trap '[[ -z ${svc:-} ]] || kill "$svc" 2>/dev/null; rm -rf "$work"' EXIT
 
 mkdir -p "$out"
 failed=0
@@ -50,7 +52,9 @@ for spec in "${scenarios[@]}"; do
         echo "ok    $label"
     else
         echo "FAIL  $label (exit $status)"; failed=1
-        grep -E "^qml: FAIL|Error|error:" "$work/$label.log" | sort -u | head -5
+        # || true: no matching line (grep 1) or more than five (head closing the pipe) must not end the run
+        # under set -e and pipefail, before the service log and the remaining shots.
+        grep -E "^qml: FAIL|Error|error:" "$work/$label.log" | sort -u | head -5 || true
         tail -n 5 "$work/service.log"
     fi
     grep -E "Error|error:|TypeError|ReferenceError|is not|Cannot" "$work/$label.log" | sort -u | head -8 || true

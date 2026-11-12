@@ -41,7 +41,7 @@ package() {
   # The widget and its icon.
   install -d "$pkgdir/usr/share/plasma/plasmoids/com.ritwick.chordist"
   cp -r applet/. "$pkgdir/usr/share/plasma/plasmoids/com.ritwick.chordist/"
-  install -Dm644 packaging/chordist.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/chordist.svg"
+  install -Dm644 applet/contents/images/guitar.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/chordist.png"
 
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 THIRD-PARTY-NOTICES.md "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-NOTICES.md"
