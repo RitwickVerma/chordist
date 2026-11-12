@@ -59,11 +59,13 @@ ColumnLayout {
                     PlasmaComponents3.SpinBox {
                         from: 0
                         to: 12
-                        // A fixed width instead of Plasma's own implicitWidth, which reads the text field and
-                        // the background's margins; on libplasma 6.3 (Debian 13) those margins arrive while it is
-                        // being worked out, and it logs a binding loop. Five grid units is what that binding
-                        // gives a 0-12 box anyway (90 px at the default font).
+                        // A fixed size instead of Plasma's own implicitWidth and implicitHeight, which read the
+                        // text field and the background's margins; on libplasma 6.3 (Debian 13) those margins
+                        // arrive while the size is being worked out, and it logs a binding loop (width first, then,
+                        // once that was pinned, height). These are the sizes those bindings give a 0-12 box at the
+                        // default font with Breeze: 90 x 30 px (five grid units; one text line plus 6 px margins).
                         implicitWidth: Kirigami.Units.gridUnit * 5
+                        implicitHeight: Kirigami.Units.gridUnit + 3 * Kirigami.Units.smallSpacing
                         value: bar.applet ? bar.applet.capo : 0
                         onValueModified: bar.applet.capo = value
                         Accessible.name: i18n("Capo fret")
