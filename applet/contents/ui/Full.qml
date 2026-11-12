@@ -55,7 +55,10 @@ Item {
         if (value === "badaddress") return i18n("Only Ultimate Guitar tab addresses can be used.")
         if (value === "nothing") return ""
         if (value.length > 0) return value
-        return applet && applet.pinFailed ? i18n("The version you picked could not be loaded; showing the automatic pick.") : ""
+        if (applet && applet.pinFailed) return i18n("The version you picked could not be loaded; showing the automatic pick.")
+        if (applet && applet.clockEstimated)
+            return i18n("This player does not say where it is: following an estimate from the start of the track.")
+        return ""
     }
 
     implicitWidth: Kirigami.Units.gridUnit * 32

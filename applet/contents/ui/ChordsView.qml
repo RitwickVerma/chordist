@@ -82,9 +82,11 @@ Item {
                                                     item.x - diagramFlick.width / 2 + item.width / 2))
         highlightTimer.restart()
     }
+    // An instrumental row's chords have no syllables to sit over: spread them out.
+    readonly property int instrumentalGap: 4
     // Which chord sits under a character of a row's chord line.
-    function chordAt(chords, charIndex) {
-        var columns = Theory.chordColumns(chords, view.semitones, view.simplify)
+    function chordAt(chords, charIndex, instrumental) {
+        var columns = Theory.chordColumns(chords, view.semitones, view.simplify, instrumental ? view.instrumentalGap : 1)
         for (var i = 0; i < columns.length; i++)
             if (charIndex >= columns[i].col && charIndex <= columns[i].col + columns[i].len) return columns[i].name
         return ""
@@ -193,8 +195,12 @@ Item {
             followIndex: view.activeRow
             follow: view.follow
             holdMs: 4000
-            // The reading scroll takes over whenever the view is not following the
-            // song: lyric sync off, or a tab, which has no timings to follow.
+            playing: !!view.applet && view.applet.playing
+            // A tab has no timings of its own: while the song is being followed the
+            // page moves in proportion to it; with following off, the reading scroll
+            // takes over, as it does for a chart whose sync is off.
+            songProgress: view.tabOnly && !!view.applet && view.applet.lyricSync && view.applet.lengthSec > 0
+                ? Math.max(0, Math.min(1, view.applet.positionSec / view.applet.lengthSec)) : -1
             readingSpeed: view.applet && view.applet.autoScroll ? view.applet.scrollSpeed : 0
 
             delegate: Item {
@@ -212,13 +218,12 @@ Item {
                 readonly property real rowTime: view.applet ? view.applet.rowTimes[index] : null
                 readonly property bool seekable: !isSection && rowTime !== null && rowTime !== undefined
 
+                readonly property int gap: entry.instrumental ? view.instrumentalGap : 1
                 readonly property var columns: isSection || isStaff || !entry.chords.length ? []
-                    : Theory.chordColumns(entry.chords, view.semitones, view.simplify)
-                readonly property string chordText: {
-                    if (!columns.length) return ""
-                    if (entry.instrumental) return columns.map(function (c) { return c.name }).join("    ")
-                    return Theory.chordLine(entry.chords, view.semitones, view.simplify)
-                }
+                    : Theory.chordColumns(entry.chords, view.semitones, view.simplify, gap)
+                // The same columns the pill below is drawn from, so the two cannot disagree.
+                readonly property string chordText: columns.length
+                    ? Theory.chordLine(entry.chords, view.semitones, view.simplify, gap) : ""
                 // The chord being played right now, drawn on its own letters.
                 readonly property int playingChord: view.applet && view.applet.activeChordRow === index
                     ? view.applet.activeChordIndex : -1
@@ -286,11 +291,10 @@ Item {
                         // Clicking a chord name brings its diagram into view.
                         MouseArea {
                             anchors.fill: parent
-                            enabled: !row.entry.instrumental
                             cursorShape: Qt.PointingHandCursor
                             onClicked: function (mouse) {
                                 if (charMetrics.width > 0)
-                                    view.showChord(view.chordAt(row.entry.chords, Math.floor(mouse.x / charMetrics.width)))
+                                    view.showChord(view.chordAt(row.entry.chords, Math.floor(mouse.x / charMetrics.width), row.entry.instrumental))
                             }
                         }
                     }
@@ -312,9 +316,9 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     z: -1
-                    enabled: row.seekable && !!view.applet
+                    enabled: row.seekable && !!view.applet && view.applet.canSeek
                     cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: view.applet.seekTo(row.rowTime)
+                    onClicked: view.applet.seekToLyricTime(row.rowTime)
                 }
             }
         }

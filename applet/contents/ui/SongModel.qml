@@ -41,7 +41,7 @@ QtObject {
     readonly property var _defaults: ({
         serviceUrl: "http://127.0.0.1:8788", autoScroll: true, lyricSync: true, showChordDiagrams: true,
         showStage: true, showFingerNumbers: true, leftHanded: false, simplifyChords: false, scrollSpeed: 5,
-        defaultTab: "chords", fontSizeOffset: 0, backgroundOpacity: 96
+        defaultTab: "chords", fontSizeOffset: 0, backgroundOpacity: 96, highlightDelayMs: 250, hideWhenEmpty: true
     })
     function cfg(key) {
         var value = config ? config[key] : undefined
@@ -64,6 +64,9 @@ QtObject {
     // How opaque our own backdrop is, 0..1: the popup background is translucent
     // and glassy themes make the text unreadable without one of our own.
     readonly property real backgroundOpacity: cfg("backgroundOpacity") / 100
+    // Leave the panel without an icon while the current track has nothing to show (the default), or keep a dimmed
+    // one, which is how a chart can be pasted for that track.
+    readonly property bool hideWhenEmpty: cfg("hideWhenEmpty")
 
     function toggle(key) { setCfg(key, !cfg(key)) }
     function adjustFontSize(delta) { setCfg("fontSizeOffset", Math.max(-4, Math.min(10, fontSizeOffset + delta))) }
@@ -71,52 +74,112 @@ QtObject {
 
     // ------------------------------------------------------------ playback
     readonly property bool ready: track.length > 0 || artist.length > 0
+    // True while the popup or the window is on screen (main.qml sets it): the
+    // clock then ticks finer and the player is asked where it is more often.
+    property bool viewVisible: false
 
     property real positionSec: 0
     // A timed line must never light up before the song reaches it: views
     // highlight up to this many seconds AFTER a line's timestamp, which absorbs
-    // the output path's own latency (a browser's clock runs ahead of the sound).
-    readonly property real syncLag: 0.25
+    // the output path's own latency (a browser's clock runs ahead of the sound;
+    // Bluetooth adds a few hundred milliseconds more). A setting, in milliseconds.
+    readonly property real syncLag: {
+        var ms = Number(cfg("highlightDelayMs"))
+        return isFinite(ms) ? Math.max(0, Math.min(2, ms / 1000)) : _defaults.highlightDelayMs / 1000
+    }
     // Nudge for when the timings do not match this release. Remembered per song.
     property real lyricsOffset: 0
+    // Where the song is on the timings' own clock: what every line, row and chord time is compared with.
     readonly property real playbackPosition: positionSec + lyricsOffset
     readonly property real playbackRate: player && player.rate > 0 ? player.rate : 1
     readonly property bool canChangeRate: !!player && player.rate !== undefined
         && (player.maximumRate || 0) > (player.minimumRate || 0)
+    // A player that cannot be sent somewhere (a browser without Plasma Browser Integration) gets no seek cursors.
+    readonly property bool canSeek: !!player && player.canSeek !== false
 
-    // MPRIS answers a Position request on demand, asynchronously, and some
-    // players only refresh it on state changes, so a straight read is up to a
-    // tick stale. Anchor to each reported value and extrapolate on the monotonic
-    // clock (scaled by the playback rate) so the position stays accurate.
+    // ---- the clock
+    // MPRIS answers a Position request asynchronously: the value read straight
+    // after asking is the previous answer, up to a poll old, and anchoring to it
+    // made the highlight run late and stutter. So the player is asked, and its
+    // answer is taken when it arrives (positionChanged, which a seek also
+    // raises); between answers the position is extrapolated on this machine's
+    // clock, scaled by the playback rate. An answer close to the extrapolation
+    // only nudges it, so a player that reports in coarse steps cannot make the
+    // highlight jitter; a distant one (a seek, a new track) resets it.
     property real _anchorPos: 0
     property double _anchorTime: 0
+    // A report has been taken for this anchor; without one the clock runs from
+    // wherever it was last set (the top of a new track).
     property bool _anchored: false
-    function syncPosition() {
-        if (!player) { positionSec = 0; _anchored = false; return }
-        var reported = player.position / 1000000
-        if (!_anchored || Math.abs(reported - _anchorPos) > 0.05) {
-            _anchorPos = reported
-            _anchorTime = Date.now()
-            _anchored = true
-        }
-        positionSec = _anchorPos + (playing ? (Date.now() - _anchorTime) / 1000 * playbackRate : 0)
+    // Nearer than this, a report and the extrapolation are the same moment apart from jitter.
+    readonly property real _snapThreshold: 0.3
+    // True once this player has reported a moving position. A player that
+    // never does (a browser without Plasma Browser Integration) is followed
+    // by an estimate counted from the start of the track.
+    property bool positionReported: false
+    readonly property bool clockEstimated: playing && !positionReported && positionSec > 8
+
+    function _extrapolated(now) {
+        return _anchorPos + (playing ? (now - _anchorTime) / 1000 * playbackRate : 0)
+    }
+    function _tick() {
+        positionSec = Math.max(0, _extrapolated(Date.now()))
         enforceLoop()
     }
+    // A position the player has just reported, in seconds.
+    function observePosition(reported) {
+        if (!(reported >= 0)) return
+        var now = Date.now()
+        if (reported > 0) positionReported = true
+        var expected = _extrapolated(now)
+        if (!_anchored || Math.abs(reported - expected) > _snapThreshold) _anchorPos = reported
+        else _anchorPos = expected + (reported - expected) / 2
+        _anchorTime = now
+        _anchored = true
+        _tick()
+    }
+    // Take the player's last answer as it stands: for the moment a player is
+    // picked, and for harnesses that set `position` by hand. The poll never
+    // reads it, because what it reads would be stale.
+    function syncPosition() {
+        if (!player) { positionSec = 0; _anchored = false; return }
+        observePosition(player.position / 1000000)
+    }
+    property Connections _playerWatch: Connections {
+        // A plain object standing in for the player (tests, the screenshot harness) has no signals.
+        target: model.player && model.player.positionChanged !== undefined ? model.player : null
+        ignoreUnknownSignals: true
+        function onPositionChanged() { model.observePosition(model.player.position / 1000000) }
+    }
+    // Ask the player where it is: every second while the popup is open, less
+    // often while it is not (the extrapolation holds, and a seek announces itself).
     property Timer _poll: Timer {
-        interval: 500; repeat: true; running: model.playing
-        onTriggered: if (model.player) { model.player.updatePosition(); model.syncPosition() }
+        interval: model.viewVisible ? 1000 : 3000; repeat: true; triggeredOnStart: true
+        running: model.playing && !!model.player
+        onTriggered: if (model.player && model.player.updatePosition) model.player.updatePosition()
     }
-    // Re-extrapolate between samples so highlights glide; much faster while a
-    // section loops, so the jump back lands close to the section's end.
+    // Re-extrapolate between answers so highlights glide: ten times a second on
+    // screen, less while hidden (the panel's chord, the tooltip), and much faster
+    // while a section loops, so the jump back lands close to the section's end.
     property Timer _glide: Timer {
-        interval: model.loopSpan ? 50 : 200; repeat: true; running: model.playing
-        onTriggered: if (model._anchored) model.syncPosition()
+        interval: model.loopSpan ? 50 : (model.viewVisible ? 100 : 200); repeat: true; running: model.playing
+        onTriggered: model._tick()
     }
-    onPlayerChanged: syncPosition()
+    onPlayerChanged: {
+        _anchored = false
+        positionReported = false
+        syncPosition()
+        if (player && player.updatePosition) player.updatePosition()
+    }
     // Pausing stops the extrapolation; resuming must restart it from where the
     // song was, not from the anchor taken before the pause (which would make the
-    // position leap ahead by the length of the pause until the next poll).
+    // position leap ahead by the length of the pause). The player's own answer
+    // follows: Plasma asks it on every state and rate change.
     onPlayingChanged: {
+        _anchorPos = positionSec
+        _anchorTime = Date.now()
+    }
+    onPlaybackRateChanged: {
         _anchorPos = positionSec
         _anchorTime = Date.now()
     }
@@ -124,16 +187,21 @@ QtObject {
     function togglePlay() { if (player) player.PlayPause() }
     function nextTrack() { if (player) player.Next() }
     function previousTrack() { if (player) player.Previous() }
+    // Send the player to `seconds` of the track.
     function seekTo(seconds) {
-        if (!player || seconds < 0) return
-        player.position = Math.max(0, Math.round(seconds * 1000000))
+        if (!player || !(seconds >= 0)) return
+        var target = lengthSec > 0 ? Math.min(seconds, lengthSec) : seconds
+        player.position = Math.round(target * 1000000)
         // Move the local anchor too, so the highlight lands on the clicked line
-        // at once instead of waiting for the next MPRIS poll.
-        _anchorPos = Math.max(0, seconds)
+        // at once instead of waiting for the player's answer.
+        _anchorPos = target
         _anchorTime = Date.now()
         _anchored = true
-        positionSec = Math.max(0, seconds)
+        positionSec = target
     }
+    // Send the player to a moment on the timings' clock (a lyric line, a chart
+    // row, a section): the per-song nudge separates the two.
+    function seekToLyricTime(seconds) { seekTo(seconds - lyricsOffset) }
     // Practice speed. Players that cannot change rate ignore this.
     function setRate(rate) {
         if (!canChangeRate) return
@@ -144,11 +212,12 @@ QtObject {
     }
 
     // ------------------------------------------------------------ practice loop
-    // A section played over and over: {name, start, end} in song seconds.
+    // A section played over and over: {name, start, end} on the timings' clock.
     property var loopSpan: null
     function enforceLoop() {
         if (!loopSpan || !playing) return
-        if (positionSec >= loopSpan.end - 0.05 && positionSec < loopSpan.end + 3) seekTo(loopSpan.start)
+        var at = playbackPosition
+        if (at >= loopSpan.end - 0.05 && at < loopSpan.end + 3) seekToLyricTime(loopSpan.start)
     }
     // A section only a moment long would be seeked back over and over: not looped.
     function loopSection(span) {
@@ -160,7 +229,7 @@ QtObject {
         var here = activeSpan
         if (here) loopSection(here)
     }
-    function jumpToSection(span) { if (span) seekTo(span.start) }
+    function jumpToSection(span) { if (span) seekToLyricTime(span.start) }
 
     // ------------------------------------------------------- service payload
     property var song: null
@@ -363,6 +432,8 @@ QtObject {
     // The length the last song request was made with: 0 means the player had not
     // told us yet, and a lookup by title alone is less certain than one by length.
     property int _requestedLength: -1
+    // The first answer for this track has arrived and its remembered settings are in place.
+    property bool _prefsLoaded: false
 
     function apiGet(path, callback) {
         var xhr = new XMLHttpRequest()
@@ -403,14 +474,21 @@ QtObject {
         _requestedLength = Math.round(lengthSec)
         loading = true
         statusMessage = ""
+        // The pins stay out of the first request for a track, so the service
+        // applies what it remembers for the song; from the answer on they are
+        // always sent, empty included, so a pick (or an un-pick) made here wins
+        // over a remembered one that has not reached the disk yet.
+        var pins = _prefsLoaded || pinnedLyricsId || pinnedChordUrl
         var query = "/api/song?artist=" + encodeURIComponent(artist)
                   + "&title=" + encodeURIComponent(track)
                   + "&album=" + encodeURIComponent(album)
                   + "&duration=" + Math.round(lengthSec)
                   + (romaniseChoice >= 0 ? "&romanise=" + romaniseChoice : "")
-                  + (pinnedLyricsId ? "&lyrics_id=" + encodeURIComponent(pinnedLyricsId) : "")
-                  + (pinnedChordUrl ? "&chord_url=" + encodeURIComponent(pinnedChordUrl) : "")
+                  + (pins ? "&lyrics_id=" + encodeURIComponent(pinnedLyricsId)
+                            + "&chord_url=" + encodeURIComponent(pinnedChordUrl) : "")
                   + (refresh === true ? "&refresh=1" : "")
+                  // A paused player is not recorded for identification.
+                  + "&playing=" + (playing ? 1 : 0)
         _songRequest = apiGet(query, function (data, error) {
             if (id !== _requestId) return
             loading = false
@@ -419,16 +497,31 @@ QtObject {
                 statusMessage = error
                 return
             }
-            song = data
-            stale = false
-            shapes = data.shapes || ({})
-            shapeVariants = data.variations || ({})
-            voicingPick = ({})
+            acceptSong(data, forArtist, forTrack)
+        })
+    }
+    // An answer for the track. The first puts the song's remembered settings
+    // back; a later one (another version, "Ask again", the script flipped)
+    // keeps whatever the user has set here since, and only follows the new
+    // chart's own capo when the old chart was being played as written.
+    function acceptSong(data, forArtist, forTrack) {
+        var first = !_prefsLoaded
+        var followingCapo = !first && capo === chartCapo
+        song = data
+        stale = false
+        shapes = data.shapes || ({})
+        shapeVariants = data.variations || ({})
+        voicingPick = ({})
+        if (first) {
             _prefsFor = { artist: forArtist, title: forTrack }
             applyPrefs(data.prefs || ({}), data.chords ? data.chords.capo : 0)
-            if (!data.lyrics && (!data.chords || !(data.chords.sections || []).length))
-                statusMessage = "nothing"
-        })
+            _prefsLoaded = true
+        } else if (followingCapo && capo !== chartCapo) {
+            _applying = true
+            capo = chartCapo
+            _applying = false
+        }
+        if (!lyricsAvailable && !chordsAvailable) statusMessage = "nothing"
     }
 
     // Put the song back the way it was left: nudge, key and any hand-picked
@@ -493,30 +586,34 @@ QtObject {
 
     property Timer _refetch: Timer { interval: 350; onTriggered: model.fetchSong() }
     Component.onCompleted: if (ready) _refetch.restart()
-    onTrackChanged: {
+    // A new title, or a new artist under a repeated title, is a new song.
+    function _songChanged() {
         flushPrefs()
-        syncPosition()
+        // The player's answer for the new track is on its way (Plasma asks for it
+        // on every track change); until it lands the track is taken to start from
+        // the top, which is also where a player that never answers is followed from.
+        _anchorPos = 0
+        _anchorTime = Date.now()
+        _anchored = false
+        positionSec = 0
         // What is on screen belongs to the previous song until the answer lands.
         stale = true
         retryCount = 0
+        _prefsLoaded = false
         pinnedLyricsId = ""
         pinnedChordUrl = ""
         // Another song's alternatives are not this song's alternatives.
         versions = null
         versionsOpen = false
         loopSpan = null
+        previewChord = ""
         if (ready) _refetch.restart()
     }
+    onTrackChanged: _songChanged()
+    onArtistChanged: _songChanged()
     // Some players announce the track's length a moment after its name. A lookup
     // made without it is redone once it arrives.
     onLengthSecChanged: if (ready && _requestedLength === 0 && lengthSec > 0) _refetch.restart()
-    onArtistChanged: {
-        flushPrefs()
-        // A new artist identifies a new track even when the title repeats.
-        stale = true
-        retryCount = 0
-        if (ready) _refetch.restart()
-    }
 
     // A song the service has nothing for must not become a request every few
     // seconds for as long as it plays: retry promptly while the service looks
@@ -536,18 +633,32 @@ QtObject {
         _prefsSave.restart()
     }
     // "That line starts now": pull the nearest timestamp onto the current
-    // position, which fixes a whole song's drift in one press.
-    function syncOffset() {
-        if (!lyrics || !lyrics.lines || !lyrics.lines.length) return
+    // position, highlight delay included, so the line lights as the button is
+    // pressed; one press fixes a whole song's drift. `stamps` are the times to
+    // choose from (the chart's rows on the chart tab); the lyric lines by default.
+    function syncOffset(stamps) {
+        var candidates = stamps
+        if (!candidates) {
+            candidates = []
+            var lines = lyrics && lyrics.lines ? lyrics.lines : []
+            for (var i = 0; i < lines.length; i++) candidates.push(lines[i].t)
+        }
+        // Where the song is on the timings' clock, allowing for the delay.
+        var heard = positionSec + lyricsOffset - syncLag
         var best = null
-        for (var i = 0; i < lyrics.lines.length; i++) {
-            var stamp = lyrics.lines[i].t
+        for (var k = 0; k < candidates.length; k++) {
+            var stamp = candidates[k]
             if (stamp === null || stamp === undefined) continue
-            var delta = Math.abs((stamp - lyricsOffset) - positionSec)
+            var delta = Math.abs(stamp - heard)
             if (best === null || delta < best.delta) best = { delta: delta, stamp: stamp }
         }
         if (!best) return
-        lyricsOffset = Math.round((best.stamp - positionSec) * 20) / 20
+        lyricsOffset = Math.round((best.stamp + syncLag - positionSec) * 20) / 20
+        _prefsSave.restart()
+    }
+    function resetOffset() {
+        if (lyricsOffset === 0) return
+        lyricsOffset = 0
         _prefsSave.restart()
     }
     readonly property string offsetLabel: {

@@ -87,24 +87,28 @@ ColumnLayout {
         ]
     }
 
-    // ----------------------------------------------------------- lyrics timing
+    // ------------------------------------------------------------------ timing
     // Timings from a database drift by a second or two between releases: nudge
-    // them, or pull the nearest line onto what is playing now.
+    // them, or pull the nearest line onto what is playing now. The chart follows
+    // the same timings, so the row is there on both tabs whenever there is
+    // something timed to nudge.
+    readonly property bool timed: !!(bar.applet && (bar.lyricsTab ? bar.applet.lyrics
+        : (bar.applet.lyricsSynced && bar.applet.chordsAvailable)))
     Kirigami.ActionToolBar {
         Layout.fillWidth: true
-        visible: !!(bar.applet && bar.applet.lyrics && bar.lyricsTab)
+        visible: bar.timed
         alignment: Qt.AlignLeft
         actions: [
             Kirigami.Action {
                 displayComponent: PlasmaComponents3.Label {
-                    text: i18n("Lyrics timing")
+                    text: bar.lyricsTab ? i18n("Lyrics timing") : i18n("Timing")
                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                     opacity: 0.6
                 }
             },
             Kirigami.Action {
                 text: "−0.5"
-                tooltip: i18n("Lyrics half a second earlier")
+                tooltip: i18n("Half a second earlier")
                 onTriggered: bar.applet.nudgeOffset(-0.5)
             },
             Kirigami.Action {
@@ -113,19 +117,26 @@ ColumnLayout {
                     horizontalAlignment: Text.AlignHCenter
                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                     opacity: 0.7
+                    Accessible.name: i18n("Timing offset")
+                    TapHandler { enabled: !!bar.applet && bar.applet.lyricsOffset !== 0; onTapped: bar.applet.resetOffset() }
+                    HoverHandler { id: offsetHover }
+                    // The attached form: a tooltip object of its own inside a delegate the toolbar builds lazily is
+                    // still being created when a test tears the engine down.
+                    PlasmaComponents3.ToolTip.text: i18n("The nudge applied to this song's timings; click to reset")
+                    PlasmaComponents3.ToolTip.visible: offsetHover.hovered
                 }
             },
             Kirigami.Action {
                 text: "+0.5"
-                tooltip: i18n("Lyrics half a second later")
+                tooltip: i18n("Half a second later")
                 onTriggered: bar.applet.nudgeOffset(0.5)
             },
             Kirigami.Action {
                 text: i18n("Line up now")
-                tooltip: i18n("Line the lyrics up with what is playing now")
+                tooltip: i18n("The nearest line starts now: line the timings up with what is playing")
                 icon.name: "view-refresh"
                 displayHint: Kirigami.DisplayHint.IconOnly
-                onTriggered: bar.applet.syncOffset()
+                onTriggered: bar.applet.syncOffset(bar.lyricsTab ? null : bar.applet.rowTimes)
             }
         ]
     }

@@ -61,6 +61,10 @@ Item {
     // Each part of the gate is its own typed boolean: a long chain of reads that
     // come back through QVariant properties is not something to bet the animation on.
     readonly property bool animateEnabled: plasmoid.configuration.animateIcon !== false
+    // On the panel at all: whenever there is something to show, and, if the
+    // setting asks for it, dimmed while a track with nothing found plays (so
+    // its chart can be pasted).
+    readonly property bool shown: hasContent || (!!applet && applet.ready && !applet.hideWhenEmpty)
     readonly property bool playingNow: !!applet && !!applet.playing
     readonly property bool iconAnimating: animateEnabled && playingNow && hasContent
 
@@ -68,14 +72,14 @@ Item {
     // The applet container sizes a panel item from the attached Layout
     // properties, so they have to be set explicitly - implicitWidth on its own
     // gets ignored and the item collapses to a bare icon square.
-    visible: hasContent
-    Layout.preferredWidth: !hasContent ? 0
+    visible: shown
+    Layout.preferredWidth: !shown ? 0
         : (showText ? content.implicitWidth + hPadding * 2 : iconSize + sidePadding * 2)
-    Layout.preferredHeight: hasContent ? Math.max(content.implicitHeight, iconSize) : 0
+    Layout.preferredHeight: shown ? Math.max(content.implicitHeight, iconSize) : 0
     Layout.minimumWidth: Layout.preferredWidth
     Layout.minimumHeight: Layout.preferredHeight
     Layout.fillWidth: false
-    Layout.fillHeight: hasContent
+    Layout.fillHeight: shown
     implicitWidth: Layout.preferredWidth
     implicitHeight: Layout.preferredHeight
 
@@ -134,7 +138,7 @@ Item {
             source: "guitar"
             fallback: "view-media-lyrics"
             active: applet !== null && applet !== undefined && applet.playing === true
-            opacity: applet && applet.ready ? 1 : 0.55
+            opacity: compact.hasContent ? 1 : 0.55
 
             // Pivot near the bottom of the box so it rocks like a guitar being
             // strummed rather than spinning about its middle.
