@@ -59,6 +59,11 @@ ColumnLayout {
                     PlasmaComponents3.SpinBox {
                         from: 0
                         to: 12
+                        // A fixed width instead of Plasma's own implicitWidth, which reads the text field and
+                        // the background's margins; on libplasma 6.3 (Debian 13) those margins arrive while it is
+                        // being worked out, and it logs a binding loop. Five grid units is what that binding
+                        // gives a 0-12 box anyway (90 px at the default font).
+                        implicitWidth: Kirigami.Units.gridUnit * 5
                         value: bar.applet ? bar.applet.capo : 0
                         onValueModified: bar.applet.capo = value
                         Accessible.name: i18n("Capo fret")
