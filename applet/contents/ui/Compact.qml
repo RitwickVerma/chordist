@@ -127,17 +127,21 @@ Item {
             asynchronous: true
         }
 
-        Kirigami.Icon {
+        Image {
             id: glyph
             visible: !art.visible
             Layout.preferredWidth: compact.iconSize
             Layout.preferredHeight: compact.iconSize
             Layout.alignment: Qt.AlignVCenter
-            // Chordist's own guitar (contents/images/guitar.png), shipped inside the
-            // widget: asking the icon theme for "guitar" left most panels with a
-            // lyrics page, since Breeze, Plasma's default, has none.
+            // Chordist's own guitar (contents/images/guitar.png), drawn as a plain Image. Not Kirigami.Icon:
+            // inside Plasma that hands even a file path to the KDE icon theme, which looks it up by name first,
+            // so a theme with a "guitar" icon (Papirus) drew its own blue electric guitar in place of this file.
             source: Qt.resolvedUrl("../images/guitar.png")
-            active: applet !== null && applet !== undefined && applet.playing === true
+            sourceSize.width: 128
+            sourceSize.height: 128
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
             opacity: compact.hasContent ? 1 : 0.55
 
             // Pivot near the bottom of the box so it rocks like a guitar being

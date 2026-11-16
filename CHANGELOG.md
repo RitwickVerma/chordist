@@ -3,7 +3,7 @@
 All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.1.0] — 2026-11-12
+## [2.1.0] — 2026-11-16
 
 The highlight keeps time. The widget's clock was anchored to a position one poll old, so the line and the chord
 being played lit up late, and a little later or earlier every half second. It now takes the player's answers as
@@ -43,7 +43,8 @@ they arrive and runs between them, and everything that seeks or loops uses the s
   a player that had stopped while another played. The multiplexer (which follows whichever player is playing and
   hides a browser's own MPRIS behind Plasma Browser Integration's richer one) is now used as it is.
 - **The panel showed a generic lyrics icon instead of a guitar.** It asked the icon theme for a "guitar", which
-  Breeze, Plasma's default, does not have. The widget now carries its own guitar icon, so every theme shows it.
+  Breeze, Plasma's default, does not have (and Papirus answers with a blue electric guitar). The widget now carries
+  its own guitar and draws the file itself, so every theme shows the same one.
 
 ### Changed
 
