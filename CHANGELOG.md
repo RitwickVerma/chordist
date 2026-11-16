@@ -3,7 +3,7 @@
 All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.1.0] — 2026-11-12
+## [2.1.0] — 2026-11-16
 
 The highlight keeps time. The widget's clock was anchored to a position one poll old, so the line and the chord
 being played lit up late, and a little later or earlier every half second. It now takes the player's answers as
