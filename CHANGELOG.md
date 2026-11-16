@@ -43,7 +43,8 @@ they arrive and runs between them, and everything that seeks or loops uses the s
   a player that had stopped while another played. The multiplexer (which follows whichever player is playing and
   hides a browser's own MPRIS behind Plasma Browser Integration's richer one) is now used as it is.
 - **The panel showed a generic lyrics icon instead of a guitar.** It asked the icon theme for a "guitar", which
-  Breeze, Plasma's default, does not have. The widget now carries its own guitar icon, so every theme shows it.
+  Breeze, Plasma's default, does not have (and Papirus answers with a blue electric guitar). The widget now carries
+  its own guitar and draws the file itself, so every theme shows the same one.
 
 ### Changed
 

@@ -40,10 +40,17 @@ def test_every_file_the_widget_points_at_is_in_the_widget():
 
 
 def test_the_panel_draws_the_widgets_own_guitar():
-    """Not a theme icon: a theme without one (Breeze) left the panel with a lyrics page."""
+    """Not a theme icon: a theme without one (Breeze) left the panel with a lyrics page. And not through
+    Kirigami.Icon either: inside Plasma that resolves even a file path through the KDE icon theme by name, and
+    Papirus's own "guitar" icon (a blue electric guitar) was drawn in place of guitar.png. A plain Image reads
+    the file."""
     compact = (ROOT / "applet/contents/ui/Compact.qml").read_text()
-    assert 'Qt.resolvedUrl("../images/guitar.png")' in compact
     assert 'source: "guitar"' not in compact
+    blocks = re.findall(r"\n        (\w+(?:\.\w+)?) \{\n            id: glyph\n(.*?)\n        \}\n", compact, re.S)
+    assert blocks, "the panel icon (id: glyph) was not found in Compact.qml"
+    kind, body = blocks[0]
+    assert kind == "Image", f"the panel icon is a {kind}; a bundled file must be drawn by a plain Image"
+    assert 'source: Qt.resolvedUrl("../images/guitar.png")' in body
     assert (ROOT / "applet/contents/images/guitar.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
